@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/plugins/camera2geo" >
+        <file>icon.png</file>
+    </qresource>
+</RCC>
