@@ -3,10 +3,10 @@
 # License: AGPL
 # Version: 1.0
 
-from Utils.raster_utils import *
+from .utils.raster_utils import *
 from shapely.geometry import Polygon
 import cv2
-import Utils.config as config
+from .utils import config
 from loguru import logger
 import lensfunpy
 

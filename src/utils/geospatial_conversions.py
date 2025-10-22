@@ -6,7 +6,7 @@
 import math
 import utm
 from pyproj import Transformer, CRS, Geod
-import Utils.config as config
+from . import config
 from loguru import logger
 
 

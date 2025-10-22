@@ -21,9 +21,16 @@
  *                                                                         *
  ***************************************************************************/
 """
+from qgis.PyQt.QtCore import Qt
+from qgis.PyQt.QtWidgets import QAction, QToolButton, QMenu
+from qgis.gui import QgsMapToolIdentifyFeature, QgsMapToolIdentify
+from qgis.PyQt.QtCore import Qt, QSettings, QTranslator, QCoreApplication, QVariant
+
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
+
+from .src.main import run_drone_footprints_pipeline
 
 # Initialize Qt resources from file resources.py
 from .resources import *
@@ -31,6 +38,45 @@ from .resources import *
 from .camera2geo_dialog import camera2geoDialog
 import os.path
 
+class AttributeInspectTool(QgsMapToolIdentifyFeature):
+    def __init__(self, iface, on_hit):
+        super().__init__(iface.mapCanvas())
+        self.iface = iface
+        self.on_hit = on_hit
+
+    def canvasReleaseEvent(self, event):
+        if event.button() != Qt.LeftButton:
+            return
+        layer = self.iface.activeLayer()
+        if not layer or layer.type() != layer.VectorLayer:
+            return
+
+        # identify at click (screen coords)
+        res = self.identify(event.pos().x(), event.pos().y(),
+                            [layer], QgsMapToolIdentify.TopDownStopAtFirst)
+        if not res:
+            return
+
+        feat = res[0].mFeature
+        names = [f.name() for f in layer.fields()]
+        attrs = dict(zip(names, feat.attributes()))
+
+        if callable(self.on_hit):
+            self.on_hit(attrs, feat, layer)
+
+def extract_path(attrs: dict, layer=None):
+    target = "path"
+    # try field names first
+    for k, v in attrs.items():
+        if k.lower() == target:
+            return v.strip() if isinstance(v, str) else (None if v in (None, QVariant()) else v)
+    # then aliases if a layer is provided
+    if layer:
+        for f in layer.fields():
+            if f.alias().strip().lower() == target and f.name() in attrs:
+                v = attrs[f.name()]
+                return v.strip() if isinstance(v, str) else (None if v in (None, QVariant()) else v)
+    return None
 
 class camera2geo:
     """QGIS Plugin Implementation."""
@@ -66,6 +112,10 @@ class camera2geo:
         # Check if plugin was started the first time in current QGIS session
         # Must be set in initGui() to survive plugin reloads
         self.first_start = None
+        self.toolbar = None
+        self.split_btn = None
+        self.tool = None
+        self.dlg = None
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -158,27 +208,62 @@ class camera2geo:
         return action
 
     def initGui(self):
-        """Create the menu entries and toolbar icons inside the QGIS GUI."""
+        # Toolbar
+        self.toolbar = self.iface.addToolBar("Camera2Geo")
+        self.toolbar.setObjectName("Camera2GeoToolbar")
 
-        icon_path = ':/plugins/camera2geo/icon.png'
-        self.add_action(
-            icon_path,
-            text=self.tr(u'Camera2geo'),
-            callback=self.run,
-            parent=self.iface.mainWindow())
+        # Main action (activates map tool)
+        self.actRun = QAction(QIcon(':/plugins/camera2geo/icon.png'), self.tr('Camera2geo'), self.iface.mainWindow())
+        self.actRun.triggered.connect(self.activate_tool)
 
-        # will be set False in run()
+        # Settings action (opens your existing dialog)
+        self.actSettings = QAction(self.tr('Settings…'), self.iface.mainWindow())
+        self.actSettings.triggered.connect(self.open_settings_dialog)
+
+        # Dropdown menu
+        menu = QMenu(self.iface.mainWindow())
+        menu.addAction(self.actSettings)
+
+        # Split button
+        self.split_btn = QToolButton(self.toolbar)
+        self.split_btn.setDefaultAction(self.actRun)
+        self.split_btn.setMenu(menu)
+        self.split_btn.setPopupMode(QToolButton.MenuButtonPopup)  # ← split-button UI
+        self.toolbar.addWidget(self.split_btn)
+
+        # Keep old menu entry if you want
+        self.iface.addPluginToMenu(self.menu, self.actRun)
+        self.iface.addPluginToMenu(self.menu, self.actSettings)
+
         self.first_start = True
 
+    def activate_tool(self):
+        def on_hit(attrs, feat, layer):
+            path = extract_path(attrs, layer)
+            if path:
+                # run directly; or wrap in a QgsTask if it’s heavy
+                run_drone_footprints_pipeline(path, "/Users/kanoalindiwe/Downloads")
+            else:
+                self.iface.messageBar().pushWarning(
+                    "Camera2Geo", "No 'path' field/alias on clicked feature.")
+
+        self.tool = AttributeInspectTool(self.iface, on_hit)
+        self.iface.mapCanvas().setMapTool(self.tool)
+
+    def open_settings_dialog(self):
+        if self.dlg is None:
+            self.dlg = camera2geoDialog()
+        self.dlg.show()
+        self.dlg.raise_()
+        self.dlg.activateWindow()
 
     def unload(self):
-        """Removes the plugin menu item and icon from QGIS GUI."""
         for action in self.actions:
-            self.iface.removePluginMenu(
-                self.tr(u'&Camera2geo'),
-                action)
+            self.iface.removePluginMenu(self.menu, action)
             self.iface.removeToolBarIcon(action)
-
+        if self.toolbar:
+            self.iface.mainWindow().removeToolBar(self.toolbar)
+            self.toolbar = None
 
     def run(self):
         """Run method that performs all the real work"""

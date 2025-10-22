@@ -15,7 +15,7 @@ import numpy as np
 import cv2 as cv
 from shapely.wkt import loads
 from loguru import logger
-import Utils.config as config
+from . import config
 from skimage.exposure import equalize_adapthist
 from PIL import Image, ImageOps
 from pathlib import Path

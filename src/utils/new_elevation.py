@@ -10,9 +10,8 @@ from scipy.ndimage import map_coordinates
 from urllib.request import urlopen
 from urllib.error import HTTPError
 import json
-# from Utils.logger_config import logging_process as logger
 from loguru import logger
-import Utils.config as config
+from . import config
 from numpy import random
 from time import sleep
 

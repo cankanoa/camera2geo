@@ -9,10 +9,10 @@ from mpmath import mp, radians, sqrt
 import quaternion
 from loguru import logger
 from vector3d.vector import Vector
-from Utils.geospatial_conversions import find_geodetic_intersections, gps_to_utm, translate_to_wgs84, utm_to_latlon
-from Utils.new_elevation import get_altitude_at_point, get_altitude_from_open, get_altitudes_from_open
-from Utils import config
-from imagedrone import ImageDrone
+from .utils.geospatial_conversions import find_geodetic_intersections, gps_to_utm, translate_to_wgs84, utm_to_latlon
+from .utils.new_elevation import get_altitude_at_point, get_altitude_from_open, get_altitudes_from_open
+from .utils import config
+from .imagedrone import ImageDrone
 
 latitude = 0
 longitude = 0

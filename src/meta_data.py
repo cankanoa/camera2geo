@@ -5,10 +5,10 @@
 import datetime
 from tqdm import tqdm
 from loguru import logger
-from Utils.utils import Color
-from Utils import config
-from imagedrone import ImageDrone
-from new_fov import HighAccuracyFOVCalculator
+from .utils import Color
+from .utils import config
+from .imagedrone import ImageDrone
+from .new_fov import HighAccuracyFOVCalculator
 import itertools
 
 

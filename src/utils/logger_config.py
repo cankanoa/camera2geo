@@ -1,7 +1,7 @@
 from loguru import logger
 from tqdm import tqdm
 from pathlib import Path
-import Utils.config as config
+from . import config
 
 script_path = Path(__file__).resolve()
 script_dir = script_path.parent

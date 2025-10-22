@@ -7,9 +7,9 @@ from geojson_rewind import rewind
 from magnetic_field_calculator import MagneticFieldCalculator
 import magnetismi.magnetismi as api
 from shapely.geometry import Polygon
-from Utils.utils import Color
-from Utils import config
-from create_geotiffs import set_raster_extents
+from .utils import Color
+from .utils import config
+from .create_geotiffs import set_raster_extents
 
 
 @dataclass
