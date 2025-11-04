@@ -5,17 +5,19 @@ import warnings
 import exiftool
 import geojson
 
+from typing import List
+
 from .meta_data import process_metadata
-from .utils.utils import read_sensor_dimensions_from_csv
+from .utils.utils import read_sensor_dimensions_from_csv, _resolve_paths
 from .utils.logger_config import logger, init_logger
 from .utils.raster_utils import create_mosaic
 from .utils import config
 
 warnings.filterwarnings("ignore", category=FutureWarning, module="osgeo")
 
-def run_drone_footprints_pipeline(
-    input_directory: str,
-    output_directory: str,
+def camera2geo(
+    input_images: str | List[str],
+    output_images: str | List[str],
     *,
     sensor_width_mm: float | None = None,
     sensor_height_mm: float | None = None,
@@ -27,11 +29,14 @@ def run_drone_footprints_pipeline(
     use_nodejs_ui: bool = False,
     dsm_path: str | None = None,                 # replaces --DSMPATH (mutually exclusive with elevation service)
     use_elevation_service: bool = False,         # replaces --elevation_service
-    sensor_info_csv: str = f"{os.path.dirname(os.path.abspath(__file__))}/drone_sensors.csv",  # keep same default
-    log_to_file: bool = True
-) -> dict:
+    sensor_info_csv: str = f"{os.path.dirname(os.path.abspath(__file__))}/drone_sensors.csv",
+) -> list:
     """
     Process a folder of drone images into GeoTIFFs and a GeoJSON footprint file.
+
+    Args:
+    input_images (str | List[str], required): Defines input files from a glob path, folder, or list of paths. Specify like: "/input/files/*.tif", "/input/folder" (assumes *.tif), ["/input/one.tif", "/input/two.tif"].
+    output_images (str | List[str], required): Defines output files from a template path, folder, or list of paths (with the same length as the input). Specify like: "/input/files/$.tif", "/input/folder" (assumes $_Geo.tif), ["/input/one.tif", "/input/two.tif"].
 
     Returns:
         dict with keys:
@@ -42,26 +47,26 @@ def run_drone_footprints_pipeline(
           - num_images (int)
           - log_path (Path | None)
     """
+
+    print(f"Run camera2geo on {input_images} to {output_images}")
+
+    # Input and output paths
+    input_image_paths = _resolve_paths(
+        "search", input_images, kwargs={"default_file_pattern": "*.JPG"}
+    )
+    output_image_paths = _resolve_paths(
+        "create",
+        output_images,
+        kwargs={
+            "paths_or_bases": input_image_paths,
+            "default_file_pattern": "$_Geo.tif",
+        },
+    )
+    input_image_names = _resolve_paths("name", input_image_paths)
+
     now = datetime.datetime.now()
 
-    # --- Validate inputs
-    indir = Path(input_directory)
-    outdir = Path(output_directory)
-    if not indir.is_dir():
-        raise NotADirectoryError(f"Input directory not found: {indir}")
-    outdir.mkdir(parents=True, exist_ok=True)
-
-    # --- Init logging
-    log_path = None
-    if log_to_file:
-        log_file = f"L_M_{now.strftime('%Y-%m-%d_%H-%M')}.log"
-        log_path = outdir / "logfiles" / log_file
-        log_path.parent.mkdir(parents=True, exist_ok=True)
-        init_logger(log_path=log_path)
-
-    logger.info("Initializing processing of drone footprints")
-
-    # --- Config flags (mirrors CLI switches)
+    # Config flags
     config.update_epsg(epsg)
     config.update_correct_magnetic_declinaison(correct_magnetic_declination)
     config.update_cog(cog)
@@ -72,80 +77,57 @@ def run_drone_footprints_pipeline(
 
     # DSM / RTK detection
     if dsm_path:
-        if not Path(dsm_path).is_file():
-            logger.warning(f"{dsm_path} is not a valid DSM file. Switching to default elevation model.")
-            config.update_dtm("")  # match previous behavior
+        if not os.path.exists(dsm_path):
+            raise ValueError(f"{dsm_path} is not a valid elevation file.", RuntimeWarning)
         else:
             config.update_dtm(dsm_path)
     else:
         config.update_dtm("")
 
     # Detect RTK sidecar(s)
-    rtk_exts = {".obs", ".mrk", ".bin", ".nav"}  # case-insensitive compare
-    rtk_present = any(p.suffix.lower() in rtk_exts for p in indir.iterdir() if p.is_file())
+    rtk_exts = {".obs", ".mrk", ".bin", ".nav"}
+    rtk_present = any(
+        os.path.splitext(p)[1].lower() in rtk_exts
+        for p in input_image_paths
+        for p in [Path(p).with_suffix(ext) for ext in rtk_exts]
+        if Path(p).exists()
+    )
     if rtk_present:
         config.update_rtk(True)
 
-    # --- Collect images
-    image_exts = {".jpg", ".jpeg", ".tif", ".tiff"}
-    files = sorted(
-        [p for p in indir.iterdir() if p.is_file() and p.suffix.lower() in image_exts],
-        key=lambda x: int("".join(filter(str.isdigit, x.name))) if any(c.isdigit() for c in x.name) else x.name.lower()
-    )
-    logger.info(f"Found {len(files)} image files in the specified directory.")
-    if not files:
-        raise FileNotFoundError("No image files found in the specified directory.")
-
-    # --- EXIF metadata
-    exif_array: list[dict] = []
+    # EXIF metadata
     with exiftool.ExifToolHelper() as et:
-        exif_array.extend(et.get_metadata(files))
+        exif_array: list[dict] = et.get_metadata(input_image_paths)
     if not exif_array:
         raise RuntimeError("Failed to extract metadata from image files.")
-    logger.info(f"Metadata gathered for {len(files)} image files.")
 
-    # --- Output dirs
-    geojson_dir = outdir / "geojsons"
-    geotiff_dir = outdir / "geotiffs"
-    geojson_dir.mkdir(parents=True, exist_ok=True)
-    geotiff_dir.mkdir(parents=True, exist_ok=True)
-
-    # --- Sensor dimensions
-    sensor_dimensions = read_sensor_dimensions_from_csv(sensor_info_csv, sensor_width_mm, sensor_height_mm)
+    # Sensor dimensions
+    sensor_dimensions = read_sensor_dimensions_from_csv(
+        sensor_info_csv, sensor_width_mm, sensor_height_mm
+    )
     if sensor_dimensions is None:
         raise RuntimeError("Error reading sensor dimensions from CSV.")
 
-    # --- Core processing
-    feature_collection, images_array = process_metadata(
-        exif_array, str(indir), geotiff_dir, sensor_dimensions
-    )
+    # Ensure output parents exist
+    for p in output_image_paths:
+        Path(p).parent.mkdir(parents=True, exist_ok=True)
 
-    # --- Write GeoJSON
-    geojson_file = f"M_{now.strftime('%Y-%m-%d_%H-%M')}.json"
-    geojson_path = geojson_dir / geojson_file
-    try:
-        with open(geojson_path, "w") as f:
-            geojson.dump(feature_collection, f, indent=4)
-    except Exception as e:
-        logger.critical(f"Error writing GeoJSON file: {e}")
-        raise
+    # Core processing
+    produced_paths: list[str] = []
+    for exif, in_path, out_path in zip(exif_array, input_image_paths, output_image_paths):
+        produced = process_metadata(
+            exif_record=exif,
+            input_image_path=in_path,
+            output_image_path=out_path,
+            sensor_dimensions=sensor_dimensions,
+            cog=cog,
+            equalize=image_equalize,
+            lens_correction=lens_correction,
+            epsg=epsg,
+            use_elevation_service=use_elevation_service,
+            dsm_path=dsm_path or "",
+            correct_magnetic_declination=correct_magnetic_declination,
+        )
+        produced_paths.append(produced if isinstance(produced, str) else out_path)
 
-    # --- Optional mosaic (when use_nodejs_ui=True, matching previous toggle)
-    mosaic_dir = None
-    if use_nodejs_ui:
-        mosaic_dir = outdir / "mosaic"
-        mosaic_dir.mkdir(parents=True, exist_ok=True)
-        create_mosaic(str(indir), mosaic_dir)
-
-    geo_type = "Cloud Optimized" if cog else "standard"
-    logger.success(f"Process complete. {len(images_array)} {geo_type} GeoTIFFs and one GeoJSON were created.")
-    logger.remove()  # clean up handlers
-
-    return {
-        "feature_collection": feature_collection,
-        "geojson_path": geojson_path,
-        "geotiff_dir": geotiff_dir,
-        "mosaic_dir": mosaic_dir,
-        "num_images": len(images_array),
-        "log_path": log_path,
-    }
+    return output_image_paths

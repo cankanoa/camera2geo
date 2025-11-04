@@ -149,22 +149,26 @@ class ImageDrone:
         self.declination=declination
 
 
+    def generate_geotiff(self, input_dir: str, output_dir: str, logger, output_path: str | None = None):
+        """
+        Generate a GeoTIFF for this image.
 
-    def generate_geotiff(self,indir_path:str, geotiff_dir:str,logger):
+        Args:
+            input_dir (str): Directory containing the input image.
+            output_dir (str): Default directory for saving output GeoTIFFs.
+            logger: Loguru logger instance.
+            output_path (str | None): Explicit output path. If provided, overrides output_dir.
         """
-         Generate GeoTIFF file image
-        """
-        self.image_path = os.path.join(indir_path, self.file_name)
-        self.output_file = f"{Path(self.file_name).stem}.tif"
-        self.geotiff_file = Path(geotiff_dir) / self.output_file
-        #generate_geotiff(image_path, geotiff_file, self.coord_array)
+        input_image = Path(input_dir) / self.file_name
+        output_file = Path(output_path) if output_path else Path(output_dir) / f"{Path(self.file_name).stem}.tif"
+
+        self.image_path = str(input_image)
+        self.geotiff_file = str(output_file)
+
         try:
             set_raster_extents(self)
         except ValueError as e:
             logger.opt(exception=True).warning(str(e))
-
-
-
 
 
     def create_geojson_feature(self, properties):

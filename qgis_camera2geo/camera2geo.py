@@ -21,22 +21,23 @@
  *                                                                         *
  ***************************************************************************/
 """
-from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtWidgets import QAction, QToolButton, QMenu
 from qgis.gui import QgsMapToolIdentifyFeature, QgsMapToolIdentify
 from qgis.PyQt.QtCore import Qt, QSettings, QTranslator, QCoreApplication, QVariant
+from qgis.core import QgsRasterLayer, QgsProject, QgsMessageLog, Qgis
 
-from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
+from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, QTemporaryDir
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
 
-from .src.main import run_drone_footprints_pipeline
+from .src.main import camera2geo as camera2geo_function
 
 # Initialize Qt resources from file resources.py
 from .resources import *
 # Import the code for the dialog
 from .camera2geo_dialog import camera2geoDialog
 import os.path
+
 
 class AttributeInspectTool(QgsMapToolIdentifyFeature):
     def __init__(self, iface, on_hit):
@@ -65,7 +66,7 @@ class AttributeInspectTool(QgsMapToolIdentifyFeature):
             self.on_hit(attrs, feat, layer)
 
 def extract_path(attrs: dict, layer=None):
-    target = "path"
+    target = "photo"
     # try field names first
     for k, v in attrs.items():
         if k.lower() == target:
@@ -214,6 +215,7 @@ class camera2geo:
 
         # Main action (activates map tool)
         self.actRun = QAction(QIcon(':/plugins/camera2geo/icon.png'), self.tr('Camera2geo'), self.iface.mainWindow())
+        self.actRun.setCheckable(True)
         self.actRun.triggered.connect(self.activate_tool)
 
         # Settings action (opens your existing dialog)
@@ -228,7 +230,7 @@ class camera2geo:
         self.split_btn = QToolButton(self.toolbar)
         self.split_btn.setDefaultAction(self.actRun)
         self.split_btn.setMenu(menu)
-        self.split_btn.setPopupMode(QToolButton.MenuButtonPopup)  # ← split-button UI
+        self.split_btn.setPopupMode(QToolButton.MenuButtonPopup)
         self.toolbar.addWidget(self.split_btn)
 
         # Keep old menu entry if you want
@@ -239,16 +241,35 @@ class camera2geo:
 
     def activate_tool(self):
         def on_hit(attrs, feat, layer):
+            QgsMessageLog.logMessage("Camera2Geo tool activated", "Camera2Geo", Qgis.Info)
             path = extract_path(attrs, layer)
-            if path:
-                # run directly; or wrap in a QgsTask if it’s heavy
-                run_drone_footprints_pipeline(path, "/Users/kanoalindiwe/Downloads")
-            else:
+            if not path:
                 self.iface.messageBar().pushWarning(
-                    "Camera2Geo", "No 'path' field/alias on clicked feature.")
+                    "Camera2Geo", "No 'photo' field on clicked feature.")
+                return
+
+            if getattr(self, "_output_tmpdir", None) is None or not self._output_tmpdir.isValid():
+                self._output_tmpdir = QTemporaryDir()
+
+            out_dir = self._output_tmpdir.path()
+
+            out_path = camera2geo_function(path, out_dir)[0]
+            if not out_path or not os.path.exists(out_path):
+                self.iface.messageBar().pushCritical("Camera2Geo", "Processing failed: no output file.")
+                return
+
+            layer_name = os.path.basename(out_path)
+            rlayer = QgsRasterLayer(out_path, layer_name, "gdal")
+
+            if not rlayer.isValid():
+                self.iface.messageBar().pushCritical("Camera2Geo", f"Failed to load: {out_path}")
+                return
+
+            QgsProject.instance().addMapLayer(rlayer)
 
         self.tool = AttributeInspectTool(self.iface, on_hit)
         self.iface.mapCanvas().setMapTool(self.tool)
+        self.actRun.setChecked(True)
 
     def open_settings_dialog(self):
         if self.dlg is None:
@@ -258,6 +279,7 @@ class camera2geo:
         self.dlg.activateWindow()
 
     def unload(self):
+        self.actRun.setChecked(False)
         for action in self.actions:
             self.iface.removePluginMenu(self.menu, action)
             self.iface.removeToolBarIcon(action)
