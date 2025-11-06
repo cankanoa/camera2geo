@@ -37,7 +37,7 @@ def camera2geo(
     )
 
     # Set once
-    config.init()
+    # config.init()
     config.update_epsg(epsg)
     config.update_correct_magnetic_declinaison(correct_magnetic_declination)
     config.update_cog(cog)
