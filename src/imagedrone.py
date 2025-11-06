@@ -1,4 +1,3 @@
-import os
 from dataclasses import dataclass,field
 from pathlib import Path
 from datetime import datetime
@@ -149,14 +148,17 @@ class ImageDrone:
         self.declination=declination
 
 
-    def generate_geotiff(self, input_dir: str, output_dir: str, logger, output_path: str | None = None):
+    def generate_geotiff(
+        self,
+        input_dir: str,
+        output_dir: str,
+        output_path: str | None = None):
         """
         Generate a GeoTIFF for this image.
 
         Args:
             input_dir (str): Directory containing the input image.
             output_dir (str): Default directory for saving output GeoTIFFs.
-            logger: Loguru logger instance.
             output_path (str | None): Explicit output path. If provided, overrides output_dir.
         """
         input_image = Path(input_dir) / self.file_name
@@ -165,10 +167,7 @@ class ImageDrone:
         self.image_path = str(input_image)
         self.geotiff_file = str(output_file)
 
-        try:
-            set_raster_extents(self)
-        except ValueError as e:
-            logger.opt(exception=True).warning(str(e))
+        set_raster_extents(self)
 
 
     def create_geojson_feature(self, properties):

@@ -10,7 +10,7 @@ from scipy.ndimage import map_coordinates
 from urllib.request import urlopen
 from urllib.error import HTTPError
 import json
-from loguru import logger
+import warnings
 from . import config
 from numpy import random
 from time import sleep
@@ -31,8 +31,7 @@ class ElevationAdjuster:
                 0]
             return interpolated_elevation
         except Exception as e:
-            logger.info(
-                f"Error calculating interpolated elevation: {e} for {config.im_file_name}. Switching to Default Altitudes.")
+            warnings.warn(f"Error calculating interpolated elevation: {e} for {config.im_file_name}. Switching to Default Altitudes.")
             return config.absolute_altitude
 
 
@@ -69,8 +68,7 @@ def get_altitude_at_point(x, y):
         elevation = elevation_data[row, col]
         return config.absolute_altitude - elevation
 
-    logger.warning(
-        f"Point ({x}, {y}) is outside the elevation data bounds for file {config.im_file_name}. Switching to default elevation.")
+    warnings.warn(f"Point ({x}, {y}) is outside the elevation data bounds for file {config.im_file_name}. Switching to default elevation.")
     return None
 
 
@@ -87,14 +85,14 @@ def get_altitude_from_open(lat:float, long:float)->float:
             with urlopen(url) as response:
                 data = response.read().decode('utf-8')
             elevation = json.loads(data)['results'][0]['elevation']
-            logger.info(f"Successfull connection to OpenElevation for file{config.im_file_name} with coordinates {lat},{long}")
+            print(f"Successfull connection to OpenElevation for file{config.im_file_name} with coordinates {lat},{long}")
             return config.absolute_altitude - elevation
         except HTTPError as err:
-            logger.warning(f"Connexion error for OpenElevation file:{config.im_file_name} coordinates {lat},{long}. Error: {err}")
+            warnings.warn(f"Connexion error for OpenElevation file:{config.im_file_name} coordinates {lat},{long}. Error: {err}")
             nb_of_failed_connection += 1
             # Sleep random time before next try
             sleep(nb_of_failed_connection)
-    logger.info(f"Too many failures for file {config.im_file_name}. Switching to default elevation.")
+    print(f"Too many failures for file {config.im_file_name}. Switching to default elevation.")
     config.update_elevation(False)
     return None
 
@@ -120,18 +118,18 @@ def get_altitudes_from_open(latlon_tupples:list[tuple])->list[float]:
             with urlopen(url) as response:
                 data = response.read().decode('utf-8')
 
-            logger.info(f"Successfull connection to OpenElevation for file {config.im_file_name} with coordinates {latlon_tupples}")
+            print(f"Successfull connection to OpenElevation for file {config.im_file_name} with coordinates {latlon_tupples}")
             # Extract altitude corrections
             alitude_list=[]
             for result in json.loads(data)['results']:
                 alitude_list.append(config.absolute_altitude-result['elevation'])
             return alitude_list
         except HTTPError as err:
-            logger.warning(f"Unable to Connect to OpenElevation for file {config.im_file_name} with coordinates {latlon_tupples}. Error: {err}")
+            warnings.warn(f"Unable to Connect to OpenElevation for file {config.im_file_name} with coordinates {latlon_tupples}. Error: {err}")
             nb_of_failed_connection += 1
             # Sleep random time before next try
             sleep(nb_of_failed_connection)
 
-    logger.info(f"Too many failures for file {config.im_file_name}. Switching to default elevation.")
+    print(f"Too many failures for file {config.im_file_name}. Switching to default elevation.")
     config.update_elevation(False)
     return None

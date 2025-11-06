@@ -5,30 +5,8 @@
 
 from tqdm import tqdm
 
-epsg_code = 4326
-rtk = False
-correct_magnetic_declinaison = False
-utm_zone = ""
-hemisphere = ""
-cog = False
-dtm_path = ""
-global_elevation = False
-global_target_delta = 0.0
-image_equalize = False
-im_file_name = ""
-relative_altitude = 0.0
-absolute_altitude = 0.0
-dsm = None
-drone_properties = None
-lense_correction = True
-center_distance = 0.0
-nodejs_graphical_interface = False
-pbar = tqdm(total=0, position=1, bar_format='{desc}')
-crs_utm = f"+proj=utm +zone={utm_zone} +{hemisphere} +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
-
-
 def init():
-    global epsg_code, rtk, correct_magnetic_declinaison, utm_zone, hemisphere, cog, dtm_path, global_elevation, crs_utm, global_target_delta, pbar, image_equalize, im_file_name, relative_altitude, absolute_altitude, dsm, drone_properties, center_distance, lense_correction, nodejgraphical_interface
+    global epsg_code, rtk, correct_magnetic_declinaison, utm_zone, hemisphere, cog, dtm_path, global_elevation, crs_utm, global_target_delta, pbar, image_equalize, im_file_name, relative_altitude, absolute_altitude, dsm, drone_properties, center_distance, lense_correction, nodejs_graphical_interface
     correct_magnetic_declinaison = False
     epsg_code = 4326
     utm_zone = ""
@@ -46,7 +24,7 @@ def init():
     dsm = None
     drone_properties = None
     lense_correction = True
-    nodejgraphical_interface = False
+    nodejs_graphical_interface = False
     pbar = tqdm(total=0, position=1, bar_format='{desc}')
     crs_utm = f"+proj=utm +zone={utm_zone} +{hemisphere} +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
 
@@ -62,8 +40,8 @@ def update_center_distance(a):
 
 
 def update_nodejs_graphical_interface(n):
-    global nodejgraphical_interface
-    nodejgraphical_interface = n
+    global nodejs_graphical_interface
+    nodejs_graphical_interface = n
 
 
 def update_correct_magnetic_declinaison(b):
@@ -138,6 +116,3 @@ def update_utm_data(c, d):
     utm_zone = c
     hemisphere = d
     crs_utm = f"+proj=utm +zone={utm_zone} +{hemisphere} +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
-
-
-init()

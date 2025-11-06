@@ -5,9 +5,9 @@
 
 import math
 import utm
+import warnings
 from pyproj import Transformer, CRS, Geod
 from . import config
-from loguru import logger
 
 
 def decimal_degrees_to_utm(latitude, longitude):
@@ -129,7 +129,7 @@ def proj_stuff(center_latitude, zone_number):
         wgs84_crs = CRS(proj="latlong", datum="WGS84")
         transformer = Transformer.from_crs(utm_crs, wgs84_crs, always_xy=True)
     except Exception as e:
-        logger.opt(exception=True).warning(f"Error initializing transformer: {e}")
+        warnings.warn(f"Error initializing transformer: {e}")
     return transformer
 
 
@@ -167,7 +167,7 @@ def calculate_geographic_offset(latitude, longitude, distance_meters, bearing_de
         geod = Geod(ellps="WGS84")
         new_longitude, new_latitude, _ = geod.fwd(longitude, latitude, bearing_degrees, distance_meters)
     except Exception as e:
-        logger.opt(exception=True).warning(f"Error calculating geographic offset: {e}")
+        warnings.warn(f"Error calculating geographic offset: {e}")
     return new_latitude, new_longitude
 
 

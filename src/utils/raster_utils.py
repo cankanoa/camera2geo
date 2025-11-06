@@ -14,7 +14,7 @@ from rio_cogeo.profiles import cog_profiles
 import numpy as np
 import cv2 as cv
 from shapely.wkt import loads
-from loguru import logger
+import warnings
 from . import config
 from skimage.exposure import equalize_adapthist
 from PIL import Image, ImageOps
@@ -67,7 +67,7 @@ def warp_image_to_polygon(img_arry, polygon, coordinate_array):
                                                 (img_arry_equalized.shape[1], img_arry_equalized.shape[0]),
                                                 borderMode=cv.BORDER_CONSTANT, borderValue=(0, 0, 0))
     except Exception as e:
-        logger.opt(exception=True).warning(f"Error warping image to polygon: {e}")
+        warnings.warn(f"Error warping image to polygon: {e}")
         return None
 
     return georef_image_array
@@ -114,7 +114,7 @@ def gps_to_pixel(gps_coord, x_min, y_max, resolution_x, resolution_y):
         Px = (lon - x_min) / resolution_x
         Py = (y_max - lat) / resolution_y
     except Exception as e:
-        logger.opt(exception=True).warning(f"Error converting GPS to pixel: {e}")
+        warnings.warn(f"Error converting GPS to pixel: {e}")
     return int(Px), int(Py)
 
 
@@ -132,11 +132,11 @@ def array2ds(cv2_array, polygon_wkt):
     """
     # Check input parameters
     if not isinstance(cv2_array, np.ndarray):
-        logger.opt(exception=True).warning(f"cv2_array must be a numpy array.")
+        warnings.warn(f"cv2_array must be a numpy array.")
     if not isinstance(polygon_wkt, str):
-        logger.opt(exception=True).warning(f"polygon_wkt must be a string.")
+        warnings.warn(f"polygon_wkt must be a string.")
     if not isinstance(config.epsg_code, int):
-        logger.opt(exception=True).warning(f"epsg_code must be an integer.")
+        warnings.warn(f"epsg_code must be an integer.")
 
     polygon = loads(polygon_wkt)
     minx, miny, maxx, maxy = polygon.bounds
@@ -160,7 +160,7 @@ def array2ds(cv2_array, polygon_wkt):
     elif cv2_array.dtype == np.float64:
         dtype = rasterio.float64
     else:
-        logger.opt(exception=True).warning(f"Unsupported data type: {str(cv2_array.dtype)}")
+        warnings.warn(f"Unsupported data type: {str(cv2_array.dtype)}")
 
     # Create and configure the rasterio dataset
     transform = from_bounds(minx, miny, maxx, maxy, width, height)

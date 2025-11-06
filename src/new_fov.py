@@ -7,23 +7,18 @@
 import numpy as np
 from mpmath import mp, radians, sqrt
 import quaternion
-from loguru import logger
+import warnings
 from vector3d.vector import Vector
 from .utils.geospatial_conversions import find_geodetic_intersections, gps_to_utm, translate_to_wgs84, utm_to_latlon
 from .utils.new_elevation import get_altitude_at_point, get_altitude_from_open, get_altitudes_from_open
 from .utils import config
 from .imagedrone import ImageDrone
 
-latitude = 0
-longitude = 0
-lens_FOVh = 0.0
-lens_FOVw = 0.0
-mp.dps = 50  # set a higher precision
-
 
 class HighAccuracyFOVCalculator:
     def __init__(self,image:ImageDrone):
 
+        mp.dps = 50  # set a higher precision
         global latitude, longitude, lens_FOVh, lens_FOVw
         self.image = image
         self.drone_gps = (image.latitude, image.longitude)
@@ -141,8 +136,7 @@ class HighAccuracyFOVCalculator:
             if new_altitude is None:  # and not config.dtm_path or not config.global_elevation is False or config.rtk:
                 new_altitude = config.relative_altitude
                 if config.global_elevation is True or config.dtm_path:
-                    logger.warning(
-                        f"Failed to get elevation for {config.im_file_name}, using drone altitude.")
+                    warnings.warn(f"Failed to get elevation for {config.im_file_name}, using drone altitude.")
 
             corrected_altitude = self._atmospheric_refraction_correction(new_altitude)
 
@@ -154,8 +148,7 @@ class HighAccuracyFOVCalculator:
             if config.dtm_path:
                 altitudes = [get_altitude_at_point(*box[:2]) for box in new_translated_bbox]
                 if None in altitudes:
-                    logger.warning(
-                        f"Failed to get elevation for image {config.im_file_name}. See log for details.")
+                    warnings.warn(f"Failed to get elevation for image {config.im_file_name}. See log for details.")
                     return translate_to_wgs84(new_translated_bbox, longitude, latitude)
 
                 # Calculate the ratios of distances to check the 5 times condition
@@ -164,8 +157,7 @@ class HighAccuracyFOVCalculator:
                              for i, box in enumerate(new_translated_bbox)]
                 for dist in distances:
                     if any(other_dist * 6 < dist for other_dist in distances if other_dist != dist):
-                        logger.warning(
-                            f"One side of the polygon for {config.im_file_name} is at least 5 times longer than another.")
+                        warnings.warn(f"One side of the polygon for {config.im_file_name} is at least 5 times longer than another.")
                         return translate_to_wgs84(new_translated_bbox, longitude, latitude)
 
             if config.global_elevation is True:
@@ -173,7 +165,7 @@ class HighAccuracyFOVCalculator:
                 altitudes = get_altitudes_from_open(trans_utmbox)
 
                 if None in altitudes:
-                    logger.warning(f"Failed to get elevation at point for {config.im_file_name}.")
+                    warnings.warn(f"Failed to get elevation at point for {config.im_file_name}.")
                     return translate_to_wgs84(new_translated_bbox, longitude, latitude)
 
                 # Calculate the ratios of distances to check the 5 times condition
@@ -182,7 +174,7 @@ class HighAccuracyFOVCalculator:
                              for i, box in enumerate(new_translated_bbox)]
                 for dist in distances:
                     if any(other_dist * 5 < dist for other_dist in distances if other_dist != dist):
-                        logger.warning(
+                        warnings.warn(
                             f"One side of the polygon for {config.im_file_name} is at least 5 times longer than another.")
                         return translate_to_wgs84(new_translated_bbox, longitude, latitude)
 
@@ -190,7 +182,7 @@ class HighAccuracyFOVCalculator:
             return translate_to_wgs84(new_translated_bbox, longitude, latitude)
 
         except Exception as e:
-            logger.warning(f"Error in get_fov_bbox: {e}")
+            warnings.warn(f"Error in get_fov_bbox: {e}")
             return None, None
 
     @staticmethod

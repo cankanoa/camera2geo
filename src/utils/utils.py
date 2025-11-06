@@ -8,7 +8,7 @@ import warnings
 import re
 import glob
 
-from loguru import logger
+import warnings
 from typing import List, Optional, Literal, Tuple
 
 
@@ -84,11 +84,11 @@ def read_sensor_dimensions_from_csv(csv_filepath, default_sensor_width=0, defaul
             default_lens_FOVw, default_lens_FOVh)
 
     except FileNotFoundError:
-        logger.critical(f"Error: The file {csv_filepath} was not found.")
+        warnings.warn(f"Error: The file {csv_filepath} was not found.")
     except pd.errors.EmptyDataError:
-        logger.critical("Error: The CSV file is empty.")
+        warnings.warn("Error: The CSV file is empty.")
     except Exception as e:
-        logger.critical(f"An unexpected error occurred: {e}")
+        warnings.warn(f"An unexpected error occurred: {e}")
     return sensor_dimensions
 
 
