@@ -214,7 +214,8 @@ class camera2geo:
         self.toolbar.setObjectName("Camera2GeoToolbar")
 
         # Main action (activates map tool)
-        self.actRun = QAction(QIcon(':/plugins/camera2geo/icon.png'), self.tr('Camera2geo'), self.iface.mainWindow())
+        icon_path = os.path.join(self.plugin_dir, "icon_low.png")
+        self.actRun = QAction(QIcon(icon_path), self.tr('Camera2geo'), self.iface.mainWindow())
         self.actRun.setCheckable(True)
         self.actRun.triggered.connect(self.activate_tool)
 
@@ -237,6 +238,7 @@ class camera2geo:
         self.iface.addPluginToMenu(self.menu, self.actRun)
         self.iface.addPluginToMenu(self.menu, self.actSettings)
 
+        self.iface.mapCanvas().mapToolSet.connect(self._on_map_tool_changed)
         self.first_start = True
 
     def activate_tool(self):
@@ -265,11 +267,31 @@ class camera2geo:
                 self.iface.messageBar().pushCritical("Camera2Geo", f"Failed to load: {out_path}")
                 return
 
-            QgsProject.instance().addMapLayer(rlayer)
+            project = QgsProject.instance()
+            root = project.layerTreeRoot()
+
+            group_name = "geophotos"
+
+            # find or create group
+            group = root.findGroup(group_name)
+            if group is None:
+                group = root.addGroup(group_name)
+
+            # add layer without stealing focus
+            project.addMapLayer(rlayer, addToLegend=False)
+            group.insertLayer(-0, rlayer)
+
+            # Simply add the layer
+            # QgsProject.instance().addMapLayer(rlayer)
 
         self.tool = AttributeInspectTool(self.iface, on_hit)
+        self.tool.setAction(self.actRun)
         self.iface.mapCanvas().setMapTool(self.tool)
         self.actRun.setChecked(True)
+
+    def _on_map_tool_changed(self, tool):
+        if tool is not self.tool:
+            self.actRun.setChecked(False)
 
     def open_settings_dialog(self):
         if self.dlg is None:
