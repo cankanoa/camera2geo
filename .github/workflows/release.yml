@@ -1,0 +1,103 @@
+name: Create GitHub Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Full version tag to create release for (e.g. 'v1.2.3')"
+        required: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out the repository at the tag
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.inputs.version || github.ref_name }}
+
+      - name: Ensure correct commit is checked out
+        shell: bash -l {0}
+        run: |
+          git fetch --tags
+          git checkout ${{ github.event.inputs.version || github.ref_name }}
+
+      - name: Install Miniconda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          auto-update-conda: true
+          python-version: "3.12"
+          channels: conda-forge
+          conda-remove-defaults: true
+
+      - name: Create Conda environment
+        run: |
+          conda create --name spectralmatch_env python=3.12 "gdal=3.10.2" "proj>=9.3" --override-channels -c conda-forge -v
+
+      - name: Activate Conda and install project
+        shell: bash -l {0}
+        run: |
+          conda activate spectralmatch_env
+          pip install build git-changelog
+          pip install .
+      - name: Generate changelog
+        shell: bash -l {0}
+        run: |
+          conda activate spectralmatch_env
+          CURRENT_TAG="${{ github.event.inputs.version || github.ref_name }}"
+          PREVIOUS_TAG=$(git tag --sort=-creatordate | grep -A1 "$CURRENT_TAG" | tail -n1 || true)
+
+          if [ -z "$PREVIOUS_TAG" ] || [ "$PREVIOUS_TAG" = "$CURRENT_TAG" ]; then
+            echo "No previous tag found. Using initial commit."
+            FROM_COMMIT=$(git rev-list --max-parents=0 HEAD)
+            git-changelog -F "$FROM_COMMIT..$CURRENT_TAG" --template keepachangelog > TEMP_VERSION_CHANGELOG.md
+          else
+            echo "Generating changelog from $PREVIOUS_TAG to $CURRENT_TAG"
+            git-changelog -F "$PREVIOUS_TAG..$CURRENT_TAG" --template keepachangelog > TEMP_VERSION_CHANGELOG.md
+          fi
+
+          cp TEMP_VERSION_CHANGELOG.md TEMP_CHANGELOG.md
+
+      - name: Switch to main and commit CHANGELOG.md
+        shell: bash -l {0}
+        run: |
+          git fetch origin main
+          git checkout main
+          mv TEMP_CHANGELOG.md CHANGELOG.md
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md
+          git commit -m "chore: update changelog for ${{ github.event.inputs.version || github.ref_name }}" || echo "No changes to commit"
+          git push origin main
+
+      - name: Build Python package
+        shell: bash -l {0}
+        run: |
+          conda activate spectralmatch_env
+          python -m build --sdist --wheel --outdir dist/
+
+      - name: Build QGIS plugin
+        shell: bash -l {0}
+        run: |
+          conda activate spectralmatch_env
+          make qgis-build
+
+      - name: Create GitHub Release with assets
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.event.inputs.version || github.ref_name }}
+          body_path: TEMP_VERSION_CHANGELOG.md
+          files: |
+            dist/*.whl
+            dist/*.tar.gz
+            spectralmatch_qgis.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
