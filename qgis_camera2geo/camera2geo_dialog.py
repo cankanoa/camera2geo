@@ -26,6 +26,9 @@ import os
 
 from qgis.PyQt import uic
 from qgis.PyQt import QtWidgets
+from qgis.PyQt.QtCore import QSettings
+from qgis.core import QgsCoordinateReferenceSystem
+
 
 # This loads your .ui file so that PyQt can populate your plugin with the elements from Qt Designer
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
@@ -34,11 +37,63 @@ FORM_CLASS, _ = uic.loadUiType(os.path.join(
 
 class camera2geoDialog(QtWidgets.QDialog, FORM_CLASS):
     def __init__(self, parent=None):
-        """Constructor."""
-        super(camera2geoDialog, self).__init__(parent)
-        # Set up the user interface from Designer through FORM_CLASS.
-        # After self.setupUi() you can access any designer object by doing
-        # self.<objectname>, and you can use autoconnect slots - see
-        # http://qt-project.org/doc/qt-4.8/designer-using-a-ui-file.html
-        # #widgets-and-dialogs-with-auto-connect
+        super().__init__(parent)
         self.setupUi(self)
+        self.load_settings()
+
+        # Update UI
+        self.elevPlaneRadio.toggled.connect(self.update_elevation_ui)
+        self.elevOnlineRadio.toggled.connect(self.update_elevation_ui)
+        self.elevLocalRadio.toggled.connect(self.update_elevation_ui)
+        self.update_elevation_ui()
+
+        self.button_box.accepted.connect(self.save_settings)
+
+    def update_elevation_ui(self):
+        # Enable file input only if "Local" is selected
+        self.dsmFileWidget.setEnabled(self.elevLocalRadio.isChecked())
+
+    def load_settings(self):
+        s = QSettings()
+        self.sensorWidthSpin.setValue(float(s.value("camera2geo/sensor_width_mm", 0) or 0))
+        self.sensorHeightSpin.setValue(float(s.value("camera2geo/sensor_height_mm", 0) or 0))
+        epsg = int(s.value("camera2geo/epsg", 4326))
+        self.crsWidget.setCrs(QgsCoordinateReferenceSystem.fromEpsgId(epsg))
+        self.declinationCheck.setChecked(s.value("camera2geo/correct_magnetic_declination", False, type=bool))
+        self.cogCheck.setChecked(s.value("camera2geo/cog", False, type=bool))
+        self.lensCheck.setChecked(s.value("camera2geo/lens_correction", False, type=bool))
+
+        self.update_elevation_ui()
+        elevation_data = s.value("camera2geo/elevation_data", "plane")
+        if elevation_data == "plane":
+            self.elevPlaneRadio.setChecked(True)
+        elif elevation_data == "online":
+            self.elevOnlineRadio.setChecked(True)
+        else:
+            self.elevLocalRadio.setChecked(True)
+            self.dsmFileWidget.setFilePath(elevation_data)
+
+        self.pathFieldName.setText(s.value("camera2geo/path_field_name", "photo"))
+        self.outputGroup.setText(s.value("camera2geo/output_group", "photos", type=str))
+        self.removePreviousPhotos.setChecked(s.value("camera2geo/remove_previous_photos", False, type=bool))
+
+    def save_settings(self):
+        s = QSettings()
+        s.setValue("camera2geo/sensor_width_mm", self.sensorWidthSpin.value())
+        s.setValue("camera2geo/sensor_height_mm", self.sensorHeightSpin.value())
+        epsg = self.crsWidget.crs().postgisSrid()
+        s.setValue("camera2geo/epsg", epsg)
+        s.setValue("camera2geo/correct_magnetic_declination", self.declinationCheck.isChecked())
+        s.setValue("camera2geo/cog", self.cogCheck.isChecked())
+        s.setValue("camera2geo/lens_correction", self.lensCheck.isChecked())
+
+        if self.elevPlaneRadio.isChecked():
+            s.setValue("camera2geo/elevation_data", "plane")
+        elif self.elevOnlineRadio.isChecked():
+            s.setValue("camera2geo/elevation_data", "online")
+        elif self.elevLocalRadio.isChecked():
+            s.setValue("camera2geo/elevation_data", self.dsmFileWidget.filePath())
+
+        s.setValue("camera2geo/path_field_name", self.pathFieldName.text())
+        s.setValue("camera2geo/output_group", self.outputGroup.text())
+        s.setValue("camera2geo/remove_previous_photos", self.removePreviousPhotos.isChecked())

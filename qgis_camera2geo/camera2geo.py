@@ -65,18 +65,30 @@ class AttributeInspectTool(QgsMapToolIdentifyFeature):
         if callable(self.on_hit):
             self.on_hit(attrs, feat, layer)
 
-def extract_path(attrs: dict, layer=None):
-    target = "photo"
-    # try field names first
+def extract_path(
+    attrs: dict,
+    layer=None,
+    target_name="photo",
+    iface=None,
+):
+    # try exact field name match
     for k, v in attrs.items():
-        if k.lower() == target:
+        if k.lower() == target_name:
             return v.strip() if isinstance(v, str) else (None if v in (None, QVariant()) else v)
-    # then aliases if a layer is provided
+
+    # try field alias match
     if layer:
         for f in layer.fields():
-            if f.alias().strip().lower() == target and f.name() in attrs:
+            if f.alias().strip().lower() == target_name and f.name() in attrs:
                 v = attrs[f.name()]
                 return v.strip() if isinstance(v, str) else (None if v in (None, QVariant()) else v)
+
+    # handle missing field inside this function
+    if iface:
+        iface.messageBar().pushWarning(
+            "Camera2Geo", f"No '{target_name}' field found on the selected feature."
+        )
+
     return None
 
 class camera2geo:
@@ -227,6 +239,9 @@ class camera2geo:
         menu = QMenu(self.iface.mainWindow())
         menu.addAction(self.actSettings)
 
+        # Save to folder name
+        # one or mulitple at the same time
+
         # Split button
         self.split_btn = QToolButton(self.toolbar)
         self.split_btn.setDefaultAction(self.actRun)
@@ -243,19 +258,35 @@ class camera2geo:
 
     def activate_tool(self):
         def on_hit(attrs, feat, layer):
-            QgsMessageLog.logMessage("Camera2Geo tool activated", "Camera2Geo", Qgis.Info)
-            path = extract_path(attrs, layer)
-            if not path:
-                self.iface.messageBar().pushWarning(
-                    "Camera2Geo", "No 'photo' field on clicked feature.")
-                return
+            s = QSettings()
+
+            path_field_name = s.value("camera2geo/path_field_name", "photo")
+            path = extract_path(attrs, layer, path_field_name)
 
             if getattr(self, "_output_tmpdir", None) is None or not self._output_tmpdir.isValid():
                 self._output_tmpdir = QTemporaryDir()
 
             out_dir = self._output_tmpdir.path()
 
-            out_path = camera2geo_function(path, out_dir)[0]
+            elevation_data_value = s.value("camera2geo/elevation_data", "plane")
+            if elevation_data_value == "plane": # No elevation data
+                elevation_data_value = False
+            elif elevation_data_value == "online": # Online elevation
+                elevation_data_value = True
+            else: # File elevation
+                pass
+
+            out_path = camera2geo_function(
+                path, out_dir,
+                sensor_width_mm=s.value("camera2geo/sensor_width_mm", None, type=float),
+                sensor_height_mm=s.value("camera2geo/sensor_height_mm", None, type=float),
+                epsg=s.value("camera2geo/epsg", 4326, type=int),
+                correct_magnetic_declination=s.value("camera2geo/correct_magnetic_declination", False, type=bool),
+                cog=s.value("camera2geo/cog", False, type=bool),
+                lens_correction=s.value("camera2geo/lens_correction", False, type=bool),
+                elevation_data=elevation_data_value,
+            )[0]
+
             if not out_path or not os.path.exists(out_path):
                 self.iface.messageBar().pushCritical("Camera2Geo", "Processing failed: no output file.")
                 return
@@ -270,12 +301,19 @@ class camera2geo:
             project = QgsProject.instance()
             root = project.layerTreeRoot()
 
-            group_name = "geophotos"
+            group_name = s.value("camera2geo/output_group", "photos")
 
             # find or create group
             group = root.findGroup(group_name)
             if group is None:
                 group = root.addGroup(group_name)
+
+            # Remove other layers in group if checked
+            remove_prev = s.value("camera2geo/remove_previous_photos", False, type=bool)
+            if remove_prev:
+                for child in list(group.children()):
+                    if hasattr(child, 'layerId'):
+                        project.removeMapLayer(child.layerId())
 
             # add layer without stealing focus
             project.addMapLayer(rlayer, addToLegend=False)
