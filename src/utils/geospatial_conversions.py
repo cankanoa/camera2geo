@@ -4,7 +4,6 @@
 #  __version__ = "1.0"
 
 import math
-import utm
 import warnings
 
 from pyproj import Transformer, CRS, Geod
@@ -23,10 +22,16 @@ def decimal_degrees_to_utm(latitude, longitude):
     Returns:
     tuple: Easting, northing, zone number, and hemisphere of the UTM coordinates.
     """
-    utm_zone = int((longitude + 180) / 6) + 1
-    hemisphere = "north" if latitude >= 0 else "south"
-    easting, northing, zone_number, zone_letter = utm.from_latlon(latitude, longitude)
-    return easting, northing, zone_number, hemisphere
+    zone_number = int((longitude + 180) / 6) + 1
+    is_southern = latitude < 0
+    utm_crs = CRS(proj="utm", zone=zone_number, ellps="WGS84", datum="WGS84", south=is_southern)
+    wgs84_crs = CRS.from_epsg(4326)
+
+    transformer = Transformer.from_crs(wgs84_crs, utm_crs, always_xy=True)
+    easting, northing = transformer.transform(longitude, latitude)
+    hemisphere = "south" if is_southern else "north"
+
+    return float(easting), float(northing), zone_number, hemisphere
 
 
 def longitude_to_utm_zone(longitude):
@@ -83,8 +88,13 @@ def utm_to_latlon(easting, northing, zone_number, hemi):
     Returns:
     tuple: Latitude and longitude in decimal degrees.
     """
-    lat, lon = utm.to_latlon(float(easting), float(northing), zone_number, hemi)
-    return lat, lon
+    is_southern = (hemi.lower().startswith("s"))
+    utm_crs = CRS(proj="utm", zone=zone_number, ellps="WGS84", datum="WGS84", south=is_southern)
+    wgs84_crs = CRS.from_epsg(4326)
+
+    transformer = Transformer.from_crs(utm_crs, wgs84_crs, always_xy=True)
+    lon, lat = transformer.transform(easting, northing)
+    return float(lat), float(lon)
 
 
 def hemisphere_flag(latitude):

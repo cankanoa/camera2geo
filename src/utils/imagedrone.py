@@ -1,13 +1,13 @@
 import warnings
-import geojson
 import magnetismi.magnetismi as api
 
 from dataclasses import dataclass,field
 from pathlib import Path
 from datetime import datetime
-from geojson_rewind import rewind
-from shapely import Polygon
 from magnetic_field_calculator import MagneticFieldCalculator
+from shapely.geometry import Polygon, mapping
+from shapely.geometry.polygon import orient
+
 
 from . import config
 from .create_geotiffs import set_raster_extents
@@ -174,25 +174,40 @@ class ImageDrone:
 
     def create_geojson_feature(self, properties):
         """
-        Create GeoJSON features from image metadata.
+        Create GeoJSON features from image metadata **without geojson or geojson_rewind**.
+        Uses shapely + json (standard library).
         """
-        # Properties setup and other related processing goes here.
-        # This is simplified to focus on structure. Implement as needed based on the original function.
 
-        geojson_polygon = geojson.dumps(Polygon(self.footprint_coordinates))
-        rewound_polygon = rewind(geojson.loads(geojson_polygon))
-        array_rw = rewound_polygon["coordinates"][0]
-        closed_array = [
-            (array_rw[0]),
-            (array_rw[3]),
-            (array_rw[2]),
-            (array_rw[1]),
-            (array_rw[0]),
-        ]
-        type_point = dict(type="Point", coordinates=[self.longitude, self.latitude])
-        type_polygon = dict(type="Polygon", coordinates=[closed_array])
-        self.feature_point = dict(type="Feature", geometry=type_point, properties=properties)
-        self.feature_polygon = dict(type="Feature", geometry=type_polygon, properties=properties)
+        # Create polygon
+        polygon = Polygon(self.footprint_coordinates)
+
+        # Ensure proper right-hand rule (counter-clockwise winding)
+        polygon = orient(polygon, sign=1)
+
+        # GeoJSON polygon
+        type_polygon = {
+            "type": "Polygon",
+            "coordinates": mapping(polygon)["coordinates"]
+        }
+
+        # GeoJSON point
+        type_point = {
+            "type": "Point",
+            "coordinates": [self.longitude, self.latitude]
+        }
+
+        # Store as feature dicts
+        self.feature_point = {
+            "type": "Feature",
+            "geometry": type_point,
+            "properties": properties
+        }
+
+        self.feature_polygon = {
+            "type": "Feature",
+            "geometry": type_polygon,
+            "properties": properties
+        }
 
     def create_properties(self):
         self.properties = dict(

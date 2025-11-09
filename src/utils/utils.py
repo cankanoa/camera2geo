@@ -3,8 +3,8 @@
 # __license__ = "AGPL"
 # __version__ = "1.0"
 
-import pandas as pd
 import os
+import csv
 import re
 import glob
 import warnings
@@ -34,38 +34,52 @@ def read_sensor_dimensions_from_csv(
     - dict: A dictionary with (sensor model, rig camera index) as keys and sensor dimensions as values.
     """
     sensor_dimensions = {}
+
     try:
-        df = pd.read_csv(csv_filepath)
-        for _, row in df.iterrows():
-            drone_make = row["DroneMake"]
-            drone_model = row["DroneModel"]
-            camera_make = row["CameraMake"]
-            sensor_model = row["SensorModel"]
-            # Handle missing RigCameraIndex as 'default'
-            cam_index = row.get("RigCameraIndex", 'default')
-            width = row.get("SensorWidth", default_sensor_width)
-            height = row.get("SensorHeight", default_sensor_height)
-            lens_FOVw = row.get("LensFOVw", default_lens_FOVw)
-            lens_FOVh = row.get("LensFOVh", default_lens_FOVh)
+        with open(csv_filepath, newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
 
-            # Construct the key with care for default values
-            key = (sensor_model, str(cam_index))
-            sensor_dimensions[key] = (
-            drone_make, drone_model, camera_make, sensor_model, str(cam_index), width, height, lens_FOVw, lens_FOVh)
+            for row in reader:
+                drone_make = row.get("DroneMake", "Unknown")
+                drone_model = row.get("DroneModel", "Unknown")
+                camera_make = row.get("CameraMake", "Unknown")
+                sensor_model = row.get("SensorModel", "default")
 
-        # Ensure a 'default' entry exists in the dictionary
-        if ("default", 'default') not in sensor_dimensions:
-            sensor_dimensions[("default", 'default')] = (
-            "Unknown", "Unknown", "Unknown", "default", 'default', default_sensor_width, default_sensor_height,
-            default_lens_FOVw, default_lens_FOVh)
+                cam_index = row.get("RigCameraIndex", "default")
+                width = float(row.get("SensorWidth", default_sensor_width) or default_sensor_width)
+                height = float(row.get("SensorHeight", default_sensor_height) or default_sensor_height)
+                lens_FOVw = float(row.get("LensFOVw", default_lens_FOVw) or default_lens_FOVw)
+                lens_FOVh = float(row.get("LensFOVh", default_lens_FOVh) or default_lens_FOVh)
+
+                key = (sensor_model, str(cam_index))
+                sensor_dimensions[key] = (
+                    drone_make,
+                    drone_model,
+                    camera_make,
+                    sensor_model,
+                    str(cam_index),
+                    width,
+                    height,
+                    lens_FOVw,
+                    lens_FOVh,
+                )
+
+        # Ensure fallback default entry exists
+        if ("default", "default") not in sensor_dimensions:
+            sensor_dimensions[("default", "default")] = (
+                "Unknown", "Unknown", "Unknown", "default", "default",
+                default_sensor_width, default_sensor_height,
+                default_lens_FOVw, default_lens_FOVh,
+            )
 
     except FileNotFoundError:
         warnings.warn(f"Error: The file {csv_filepath} was not found.")
-    except pd.errors.EmptyDataError:
-        warnings.warn("Error: The CSV file is empty.")
+
     except Exception as e:
-        warnings.warn(f"An unexpected error occurred: {e}")
+        warnings.warn(f"An unexpected error occurred while reading {csv_filepath}: {e}")
+
     return sensor_dimensions
+
 
 
 def _resolve_paths(
