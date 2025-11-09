@@ -5,8 +5,8 @@ requires = [
 ]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools]
-packages = { find = { include = ["src*"] } }
+[tool.setuptools.packages.find]
+where = ["."]
 
 [project]
 name = "camera2geo"
@@ -63,4 +63,4 @@ dev = [
 "Source" = "https://github.com/cankanoa/camera2geo"
 
 [project.scripts]
-spectralmatch = "spectralmatch.cli:main"
+camera2geo = "camera2geo.cli:main"
