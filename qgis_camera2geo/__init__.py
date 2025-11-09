@@ -32,5 +32,5 @@ def classFactory(iface):  # pylint: disable=invalid-name
     :type iface: QgsInterface
     """
     #
-    from .camera2geo import camera2geo
-    return camera2geo(iface)
+    from .camera2geo_plugin import Camera2GeoPlugin
+    return Camera2GeoPlugin(iface)

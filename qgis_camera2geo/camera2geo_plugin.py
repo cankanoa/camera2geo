@@ -30,7 +30,7 @@ from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, QTemporar
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
 
-from .src.main import camera2geo as camera2geo_function
+from .camera2geo.main import camera2geo as camera2geo_function
 
 # Initialize Qt resources from file resources.py
 from .resources import *
@@ -91,7 +91,7 @@ def extract_path(
 
     return None
 
-class camera2geo:
+class Camera2GeoPlugin:
     """QGIS Plugin Implementation."""
 
     def __init__(self, iface):
