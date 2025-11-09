@@ -10,7 +10,6 @@ from .utils.imagedrone import ImageDrone
 from .utils.new_fov import HighAccuracyFOVCalculator
 
 # Uses the following metadata: required: lat, long, agl, focal length, roll, yaw, pitch, width, height, datetime
-
 def camera2geo(
     input_images: str | List[str],
     output_images: str | List[str],
@@ -25,6 +24,23 @@ def camera2geo(
     elevation_data: str | bool = False,
     sensor_info_csv: str = f"{os.path.dirname(os.path.abspath(__file__))}/drone_sensors.csv",
 ) -> list:
+    """
+    Convert raw camera or drone images to georeferenced GeoTIFFs. This function reads image EXIF metadata, determines camera geometry, and projects the image footprint into geographic space. A GeoTIFF is produced for each input image using ground elevation data from either a local DSM or an online elevation service.
+
+    Args:
+        input_images (str | List[str], required): Defines input files from a glob path, folder, or list of paths. Specify like: "/input/files/*.tif", "/input/folder" (assumes *.tif), ["/input/one.tif", "/input/two.tif"].
+        output_images (str | List[str], required): Defines output files from a template path, folder, or list of paths (with the same length as the input). Specify like: "/input/files/$.tif", "/input/folder" (assumes $_Global.tif), ["/input/one.tif", "/input/two.tif"].
+        sensor_width_mm: Sensor physical width in millimeters. If not provided, dimensions are inferred from the sensor info CSV.
+        sensor_height_mm: Sensor physical height in millimeters. If not provided, dimensions are inferred from the sensor info CSV.
+        epsg: EPSG code of the output coordinate reference system.
+        correct_magnetic_declination: If True, adjust camera yaw using magnetic declination.
+        cog: If True, create Cloud-Optimized GeoTIFF output.
+        image_equalize: If True, apply histogram equalization.
+        lens_correction: If True, apply lens distortion correction.
+        elevation_data: Controls elevation source. If False, no elevation is used; if True, an online elevation service is queried; if a string, it is interpreted as a local DSM path.
+        sensor_info_csv: CSV file containing known camera sensor dimensions with the following columns: DroneMake,DroneModel,CameraMake,SensorModel,RigCameraIndex,SensorWidth,SensorHeight,LensFOVw,LensFOVh
+    """
+
     print(f"Run camera2geo on {input_images} to {output_images}")
 
     input_image_paths = _resolve_paths(
