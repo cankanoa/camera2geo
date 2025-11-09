@@ -18,15 +18,15 @@ python-build:
 # QGIS
 qgis-build:
 	@echo "Creating plugin zip..."
-	mkdir -p qgis_camera2geo/src
-	cp -r src/* qgis_camera2geo/src/
+	mkdir -p qgis_camera2geo/camera2geo
+	cp -r camera2geo/* qgis_camera2geo/camera2geo/
 	cp images/icon_low.png qgis_camera2geo/icon_low.png
 	PYTHONPATH=. python qgis_camera2geo/build_plugin.py
-	find qgis_camera2geo/src -name ".DS_Store" -delete
-	find qgis_camera2geo/src -name "__MACOSX" -type d -exec rm -rf {} +
+	find qgis_camera2geo/camera2geo -name ".DS_Store" -delete
+	find qgis_camera2geo/camera2geo -name "__MACOSX" -type d -exec rm -rf {} +
 	zip -r qgis_camera2geo.zip qgis_camera2geo/ \
 		-x "*.DS_Store" "*__MACOSX*"
-	rm -rf qgis_camera2geo/src/
+	rm -rf qgis_camera2geo/camera2geo/
 	rm qgis_camera2geo/icon_low.png
 	rm qgis_camera2geo/requirements.txt
 	@echo "Done"
