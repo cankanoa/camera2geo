@@ -39,11 +39,6 @@ def update_center_distance(a):
     center_distance = a
 
 
-def update_nodejs_graphical_interface(n):
-    global nodejs_graphical_interface
-    nodejs_graphical_interface = n
-
-
 def update_correct_magnetic_declinaison(b):
     global correct_magnetic_declinaison
     correct_magnetic_declinaison = b

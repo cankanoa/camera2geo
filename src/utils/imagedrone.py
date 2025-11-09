@@ -1,13 +1,15 @@
+import warnings
+import geojson
+import magnetismi.magnetismi as api
+
 from dataclasses import dataclass,field
 from pathlib import Path
 from datetime import datetime
-import geojson
 from geojson_rewind import rewind
+from shapely import Polygon
 from magnetic_field_calculator import MagneticFieldCalculator
-import magnetismi.magnetismi as api
-from shapely.geometry import Polygon
-from .utils import Color
-from .utils import config
+
+from . import config
 from .create_geotiffs import set_raster_extents
 
 
@@ -144,7 +146,7 @@ class ImageDrone:
             declination = dec['value']
 
         if self.relative_altitude < 0 or self.focal_length <= 0:
-            config.pbar.write(Color.RED + ValueError("Altitude and focal length must be positive.") + Color.END)
+            warnings.warn("Altitude and focal length must be positive.")
         self.declination=declination
 
 

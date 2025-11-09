@@ -1,13 +1,15 @@
 import os
-import datetime
-from pathlib import Path
 import exiftool
+
+from pathlib import Path
 from typing import List
 
 from .utils.utils import read_sensor_dimensions_from_csv, _resolve_paths
 from .utils import config
-from .imagedrone import ImageDrone
-from .new_fov import HighAccuracyFOVCalculator
+from .utils.imagedrone import ImageDrone
+from .utils.new_fov import HighAccuracyFOVCalculator
+
+# Uses the following metadata: required: lat, long, agl, focal length, roll, yaw, pitch, width, height, datetime
 
 def camera2geo(
     input_images: str | List[str],
@@ -20,9 +22,7 @@ def camera2geo(
     cog: bool = False,
     image_equalize: bool = False,
     lens_correction: bool = False,
-    use_nodejs_ui: bool = False,
-    dsm_path: str | None = None,
-    use_elevation_service: bool = False,
+    elevation_data: str | bool = False,
     sensor_info_csv: str = f"{os.path.dirname(os.path.abspath(__file__))}/drone_sensors.csv",
 ) -> list:
     print(f"Run camera2geo on {input_images} to {output_images}")
@@ -37,15 +37,23 @@ def camera2geo(
     )
 
     # Set once
-    # config.init()
     config.update_epsg(epsg)
     config.update_correct_magnetic_declinaison(correct_magnetic_declination)
     config.update_cog(cog)
     config.update_equalize(image_equalize)
     config.update_lense(lens_correction)
-    config.update_elevation(use_elevation_service)
-    config.update_nodejs_graphical_interface(use_nodejs_ui)
-    config.update_dtm(dsm_path or "")
+
+    if elevation_data is False:
+        config.update_elevation(False)  # No online
+        config.update_dtm("")  # No local DSM
+
+    elif elevation_data is True:
+        config.update_elevation(True)  # Online elevation
+        config.update_dtm("")  # No local DSM
+
+    elif isinstance(elevation_data, str):
+        config.update_elevation(False)  # Not online
+        config.update_dtm(elevation_data)  # Use local DSM path
 
     with exiftool.ExifToolHelper() as et:
         exif_array = et.get_metadata(input_image_paths)

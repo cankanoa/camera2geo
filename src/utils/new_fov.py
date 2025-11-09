@@ -3,15 +3,16 @@
 #  __license__ = "AGPL"
 #  __version__ = "1.0"
 
-
 import numpy as np
-from mpmath import mp, radians, sqrt
 import quaternion
 import warnings
+
+from mpmath import mp, radians, sqrt
 from vector3d.vector import Vector
-from .utils.geospatial_conversions import find_geodetic_intersections, gps_to_utm, translate_to_wgs84, utm_to_latlon
-from .utils.new_elevation import get_altitude_at_point, get_altitude_from_open, get_altitudes_from_open
-from .utils import config
+
+from .geospatial_conversions import find_geodetic_intersections, gps_to_utm, translate_to_wgs84, utm_to_latlon
+from .new_elevation import get_altitude_at_point, get_altitude_from_open, get_altitudes_from_open
+from . import config
 from .imagedrone import ImageDrone
 
 

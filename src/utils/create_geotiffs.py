@@ -3,14 +3,15 @@
 # License: AGPL
 # Version: 1.0
 
-from .utils.raster_utils import *
-from shapely.geometry import Polygon
 import cv2
-from .utils import config
 import lensfunpy
 import warnings
 
-#def set_raster_extents(image_path, dst_utf8_path, coordinate_array):
+from shapely import Polygon
+
+from .raster_utils import *
+from . import config
+
 def set_raster_extents(image):
     try:
         jpeg_img = cv2.imread(image.image_path, cv2.IMREAD_UNCHANGED)

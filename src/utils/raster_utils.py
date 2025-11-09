@@ -2,28 +2,30 @@
 #  Author: Dean Hand
 #  License: AGPL
 #  Version: 1.0
+
 import os
 import sys
-from contextlib import contextmanager
 import rasterio
+import numpy as np
+import cv2 as cv
+import warnings
+import math
+
+from contextlib import contextmanager
 from rasterio.transform import from_bounds
 from rasterio.enums import ColorInterp
 from rasterio.warp import calculate_default_transform, reproject, Resampling
 from rio_cogeo.cogeo import cog_translate
 from rio_cogeo.profiles import cog_profiles
-import numpy as np
-import cv2 as cv
 from shapely.wkt import loads
-import warnings
-from . import config
 from skimage.exposure import equalize_adapthist
 from PIL import Image, ImageOps
 from pathlib import Path
-import math
+
+from . import config
 
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".tif", ".tiff"}
-
 
 def warp_image_to_polygon(img_arry, polygon, coordinate_array):
     """

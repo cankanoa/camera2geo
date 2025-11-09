@@ -3,17 +3,18 @@
 #  __license__ = "AGPL"
 #  __version__ = "1.0"
 
+import json
+import warnings
+
 from rasterio import rasterio
 from rasterio.transform import rowcol
 from pyproj import Transformer
 from scipy.ndimage import map_coordinates
 from urllib.request import urlopen
 from urllib.error import HTTPError
-import json
-import warnings
-from . import config
-from numpy import random
 from time import sleep
+
+from . import config
 
 
 ATTEMPS_NUMBERS:int= 10
