@@ -7,9 +7,17 @@ from typing import Dict, Any, List
 from .utils.io import _resolve_paths
 
 
-def read_metadata(input_images: str | List[str]):
+def read_metadata(
+    input_images: str | List[str]
+    ):
     """
-    Read metadata for one or many images and print YAML where each image is a top-level item. Each parameter lists all possible metadata keys that could supply the value, even if empty.
+    Read metadata from one or more images and print the results as YAML and return values. Each parameter includes all metadata source fields that contribute to its value (primary + fallback).
+
+    Args:
+        input_images (str | List[str], required): Defines input files from a glob path, folder, or list of paths. Specify like: "/input/files/*.JPG", "/input/folder" (assumes *.JPG), ["/input/one.JPG", "/input/two.JPG"].
+
+    Returns:
+        dict: Mapping of image paths to grouped metadata key/value dictionaries.
     """
 
     print(f"Run read_metadata on {input_images}")
@@ -92,18 +100,20 @@ def apply_metadata(
         output_images: str | List[str] | None = None,
     ):
     """
-    Apply or remove metadata fields on one or more images. If output_images is None, updates are applied in-place. If output_images is provided, input files are copied to output and only output files are modified.
+    Apply or remove metadata on one or more images. If `output_images` is not provided, edits are applied in-place; otherwise, input files are copied first.
 
-    metadata_updates should be a dict where:
-      - key = metadata tag name (e.g., "EXIF:FocalLength")
-      - value != None → set the tag to this value
-      - value == None → remove the tag entirely
+    Args:
+        input_images (str | List[str], required): Defines input files from a glob path, folder, or list of paths. Specify like: "/input/files/*.JPG", "/input/folder" (assumes *.JPG), ["/input/one.JPG", "/input/two.JPG"].
+        metadata (Dict[str, Any]): Dictionary of metadata updates. Keys are tag names (e.g., "EXIF:FocalLength") and values are tag values (e.g. 10.4 to set to float or None to remove metadata field from image).
+        output_images (str | List[str], required): Defines output files from a template path, folder, or list of paths (with the same length as the input). Specify like: "/input/files/$.tif", "/input/folder" (assumes $_Meta.tif), ["/input/one.tif", "/input/two.tif"].
 
+    Returns:
+        list[str]: Paths of the modified images.
     """
     print(f"Run apply_metadata on {input_images}")
 
     input_image_paths = _resolve_paths(
-        "search", input_images,
+        "search", input_images, kwargs={"default_file_pattern": "*.JPG"}
     )
 
     # If no output_images → modify in-place

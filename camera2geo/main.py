@@ -27,8 +27,8 @@ def camera2geo(
     Convert raw camera or drone images to georeferenced GeoTIFFs. This function reads image EXIF metadata, determines camera geometry, and projects the image footprint into geographic space. A GeoTIFF is produced for each input image using ground elevation data from either a local DSM or an online elevation service.
 
     Args:
-        input_images (str | List[str], required): Defines input files from a glob path, folder, or list of paths. Specify like: "/input/files/*.tif", "/input/folder" (assumes *.tif), ["/input/one.tif", "/input/two.tif"].
-        output_images (str | List[str], required): Defines output files from a template path, folder, or list of paths (with the same length as the input). Specify like: "/input/files/$.tif", "/input/folder" (assumes $_Global.tif), ["/input/one.tif", "/input/two.tif"].
+        input_images (str | List[str], required): Defines input files from a glob path, folder, or list of paths. Specify like: "/input/files/*.JPG", "/input/folder" (assumes *.JPG), ["/input/one.JPG", "/input/two.JPG"].
+        output_images (str | List[str], required): Defines output files from a template path, folder, or list of paths (with the same length as the input). Specify like: "/input/files/$.tif", "/input/folder" (assumes $_Geo.tif), ["/input/one.tif", "/input/two.tif"].
         sensor_width_mm: Sensor physical width in millimeters. If not provided, dimensions are inferred from the sensor info CSV.
         sensor_height_mm: Sensor physical height in millimeters. If not provided, dimensions are inferred from the sensor info CSV.
         epsg: EPSG code of the output coordinate reference system.
