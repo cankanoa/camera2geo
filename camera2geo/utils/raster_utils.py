@@ -10,7 +10,10 @@ import numpy as np
 import cv2 as cv
 import warnings
 import math
+import cv2
+import lensfunpy
 
+from shapely import Polygon
 from contextlib import contextmanager
 from rasterio.transform import from_bounds
 from rasterio.enums import ColorInterp
@@ -22,8 +25,7 @@ from skimage.exposure import equalize_adapthist
 from PIL import Image, ImageOps
 from pathlib import Path
 
-from . import config
-
+from .metadata import ImageClass
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".tif", ".tiff"}
 
@@ -41,7 +43,7 @@ def warp_image_to_polygon(img_arry, polygon, coordinate_array):
     - The auto-leveled and then warped image array.
     """
 
-    if config.image_equalize is True:
+    if ImageClass.image_equalize:
         img_arry_equalized = equalize_adapthist(img_arry, clip_limit=0.03)
     else:
         img_arry_equalized = img_arry
@@ -137,7 +139,7 @@ def array2ds(cv2_array, polygon_wkt):
         warnings.warn(f"cv2_array must be a numpy array.")
     if not isinstance(polygon_wkt, str):
         warnings.warn(f"polygon_wkt must be a string.")
-    if not isinstance(config.epsg_code, int):
+    if not isinstance(ImageClass.epsg, int):
         warnings.warn(f"epsg_code must be an integer.")
 
     polygon = loads(polygon_wkt)
@@ -166,7 +168,7 @@ def array2ds(cv2_array, polygon_wkt):
 
     # Create and configure the rasterio dataset
     transform = from_bounds(minx, miny, maxx, maxy, width, height)
-    crs = rasterio.crs.CRS.from_epsg(config.epsg_code)
+    crs = rasterio.crs.CRS.from_epsg(ImageClass.epsg)
 
     with rasterio.MemoryFile() as memfile:
         with memfile.open(driver='GTiff', height=height, width=width, count=bands, dtype=dtype, crs=crs,
@@ -210,7 +212,7 @@ def warp_to_geotiff_file(geotiff_file:str, dataset):
 
     No return value.
     """
-    dst_crs = rasterio.crs.CRS.from_epsg(config.epsg_code)
+    dst_crs = rasterio.crs.CRS.from_epsg(ImageClass.epsg)
 
     transform, width, height = calculate_default_transform(
         dataset.crs, dst_crs, dataset.width, dataset.height, *dataset.bounds)
@@ -235,7 +237,7 @@ def warp_to_geotiff_file(geotiff_file:str, dataset):
                 dst_crs=dst_crs,
                 resampling=Resampling.nearest)
 
-    if config.cog:
+    if ImageClass.cog:
         # Convert the GeoTIFF to a Cloud Optimized GeoTIFF (COG)
         cogeo_profile = 'deflate'
         with suppress_stdout_stderr():
@@ -307,3 +309,120 @@ def create_mosaic(directory, output_base_path, mosaic_size=(400, 350), border_si
     output_path.parent.mkdir(parents=True, exist_ok=True)  # Ensure the mosaic directory exists
 
     mosaic_image.save(output_path, format='JPEG')
+
+
+def set_raster_extents(image):
+    try:
+        jpeg_img = cv2.imread(image.image_path, cv2.IMREAD_UNCHANGED)
+        if jpeg_img is None:
+            warnings.warn(f"File not found: {image.image_path}")
+            return
+        fixed_polygon = Polygon(image.coord_array)
+        if image.lens_correction:
+            try:
+                focal_length = image.focal_length
+                distance = image.center_distance
+                cam_maker = image.camera_make
+                cam_model = image.sensor_model
+                aperture = image.max_aperture_value
+
+                # Load camera and lens from lensfun database
+                db = lensfunpy.Database()
+                cam = db.find_cameras(cam_maker, cam_model, True)[0]
+                lens = db.find_lenses(cam, cam_maker, cam_model, True)[0]
+
+                height, width = jpeg_img.shape[:2]
+                mod = lensfunpy.Modifier(lens, cam.crop_factor, width, height)
+
+                # Determine rasterio data type based on cv2_array data type
+                if jpeg_img.dtype == np.uint8:
+                    pixel_format = np.uint8
+                elif jpeg_img.dtype == np.int16:
+                    pixel_format = np.int16
+                elif jpeg_img.dtype == np.uint16:
+                    pixel_format = np.uint16
+                elif jpeg_img.dtype == np.int32:
+                    pixel_format = np.int32
+                elif jpeg_img.dtype == np.float32:
+                    pixel_format = np.float32
+                elif jpeg_img.dtype == np.float64:
+                    pixel_format = np.float64
+                else:
+                    warnings.warn(f"Unsupported data type: {str(jpeg_img.dtype)}")
+
+                mod.initialize(focal_length, aperture, distance, pixel_format=pixel_format)
+
+                # Apply geometry distortion correction and obtain distortion maps
+                maps = mod.apply_geometry_distortion()
+                map_x = maps[:, :, 0]
+                map_y = maps[:, :, 1]
+
+                img_undistorted = cv2.remap(jpeg_img, map_x, map_y, interpolation=cv2.INTER_LANCZOS4)
+            except IndexError as e:
+                ImageClass.lens_correction = False
+                img_undistorted = np.array(jpeg_img)
+                warnings.warn("Cannot correct lens distortion. Camera properties not found in database.")
+                warnings.warn(f"Index error: {e} for {image.image_path}")
+        else:
+            img_undistorted = np.array(jpeg_img)
+
+        if jpeg_img.ndim == 2:  # Single band image
+            adjImg = img_undistorted
+        elif jpeg_img.ndim == 3:  # Multiband image
+            adjImg = cv2.cvtColor(img_undistorted, cv2.COLOR_BGR2RGB)
+        else:
+            adjImg = cv2.cvtColor(img_undistorted, cv2.COLOR_BGR2RGBA)
+
+        rectify_and_warp_to_geotiff(adjImg, image.geotiff_file, fixed_polygon, image.coord_array)
+    except FileNotFoundError as e:
+        warnings.warn(f"File not found: {image.image_path}. {e}")
+    except Exception as e:
+        warnings.warn(f"Error opening or processing image: {e}")
+
+
+def rectify_and_warp_to_geotiff(jpeg_img_array, geotiff_file, fixed_polygon, coordinate_array):
+    """
+    Warps and rectifies a JPEG image array to a GeoTIFF format based on a fixed polygon and coordinate array.
+
+    Parameters:
+    - jpeg_img_array: The NumPy array of the JPEG image.
+    - dst_utf8_path: Destination path for the output GeoTIFF image.
+    - fixed_polygon: The shapely Polygon object defining the target area.
+    - coordinate_array: Array of coordinates used for warping the image.
+    """
+    # Convert the Polygon to WKT format
+    polygon_wkt = str(fixed_polygon)
+
+    try:
+        georef_image_array = warp_image_to_polygon(jpeg_img_array, fixed_polygon, coordinate_array)
+        dsArray = array2ds(georef_image_array, polygon_wkt)
+    except Exception as e:
+        warnings.warn(f"Error during warping or dataset creation: {e}")
+
+    # Warp the rasterio dataset to the destination path
+    try:
+        warp_to_geotiff_file(geotiff_file, dsArray)
+    except Exception as e:
+        warnings.warn(f"Error writing GeoTIFF: {e}")
+
+
+def generate_geotiff(
+    self,
+    input_dir: str,
+    output_dir: str,
+    output_path: str | None = None):
+    """
+    Generate a GeoTIFF for this image.
+
+    Args:
+        input_dir (str): Directory containing the input image.
+        output_dir (str): Default directory for saving output GeoTIFFs.
+        output_path (str | None): Explicit output path. If provided, overrides output_dir.
+    """
+    input_image = Path(input_dir) / self.file_name
+    output_file = Path(output_path) if output_path else Path(output_dir) / f"{Path(self.file_name).stem}.tif"
+
+    self.image_path = str(input_image)
+    self.geotiff_file = str(output_file)
+
+    set_raster_extents(self)
