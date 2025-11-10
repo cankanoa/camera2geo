@@ -3,21 +3,28 @@ import magnetismi.magnetismi as api
 
 from dataclasses import dataclass,field
 from pathlib import Path
+from typing import ClassVar
 from datetime import datetime
 from magnetic_field_calculator import MagneticFieldCalculator
 from shapely.geometry import Polygon, mapping
 from shapely.geometry.polygon import orient
 
 
-from . import config
-from .create_geotiffs import set_raster_extents
-
-
 @dataclass
-class ImageDrone:
+class ImageClass:
+    # Class vars
+    epsg: ClassVar[int] = 4326
+    correct_magnetic_declination: ClassVar[bool] = False
+    cog: ClassVar[bool] = False
+    image_equalize: ClassVar[bool] = False
+    lens_correction: ClassVar[bool] = False
+    elevation_mode: ClassVar[str] = "plane"
+    dsm_path: ClassVar[str | None] = None
+    global_elevation: ClassVar[bool] = False
+
+    # Instance vars
     metadata : dict
-    sensor_dimensions : tuple
-    config: config
+    sensor_dimensions : dict
     declination : float = None
     drone_hash : int = None
     feature_point : dict = field(default_factory=dict)
@@ -30,10 +37,7 @@ class ImageDrone:
     geotiff_file : str = ""
 
     def __post_init__(self):
-
         self.file_name = str(self.metadata.get("File:FileName"))
-
-        self.lense_correction = config.lense_correction
 
         # Extract detailed sensor and drone info for the current image
         # Extracting latitude, longitude, and altitude details
@@ -74,7 +78,6 @@ class ImageDrone:
                                or self.metadata.get("EXIF:ExifImageWidth")) # pixels
         self.image_height = int(self.metadata.get("EXIF:ImageHeight")
                                 or self.metadata.get("EXIF:ExifImageHeight")) # pixels
-        self.focal_length = float(self.metadata.get("EXIF:FocalLength"))
         self.max_aperture_value = self.metadata.get("EXIF:MaxApertureValue")
         # date/time of original image capture
         self.datetime_original = self.metadata.get("EXIF:DateTimeOriginal")
@@ -150,28 +153,6 @@ class ImageDrone:
         self.declination=declination
 
 
-    def generate_geotiff(
-        self,
-        input_dir: str,
-        output_dir: str,
-        output_path: str | None = None):
-        """
-        Generate a GeoTIFF for this image.
-
-        Args:
-            input_dir (str): Directory containing the input image.
-            output_dir (str): Default directory for saving output GeoTIFFs.
-            output_path (str | None): Explicit output path. If provided, overrides output_dir.
-        """
-        input_image = Path(input_dir) / self.file_name
-        output_file = Path(output_path) if output_path else Path(output_dir) / f"{Path(self.file_name).stem}.tif"
-
-        self.image_path = str(input_image)
-        self.geotiff_file = str(output_file)
-
-        set_raster_extents(self)
-
-
     def create_geojson_feature(self, properties):
         """
         Create GeoJSON features from image metadata **without geojson or geojson_rewind**.
@@ -236,8 +217,7 @@ class ImageDrone:
             MaxApertureValue=self.max_aperture_value,
             lens_FOV1h=self.lens_FOV_height,
             lens_FOVw1=self.lens_FOV_width,
-            GSD=self.gsd,
-            epsgCode=self.config.epsg_code)
+            GSD=self.gsd)
         if self.gimbal_pitch_degree == 999:
             self.properties['FlightYawDegree']=self.gimbal_yaw_degree
             self.properties['FlightPitchDegree']=self.gimbal_pitch_degree

@@ -10,14 +10,13 @@ import warnings
 from mpmath import mp, radians, sqrt
 from vector3d.vector import Vector
 
-from .geospatial_conversions import find_geodetic_intersections, gps_to_utm, translate_to_wgs84, utm_to_latlon
-from .new_elevation import get_altitude_at_point, get_altitude_from_open, get_altitudes_from_open
-from . import config
-from .imagedrone import ImageDrone
+from .geospatial import find_geodetic_intersections, gps_to_utm, translate_to_wgs84, utm_to_latlon
+from .elevation import get_altitude_at_point, get_altitude_from_open, get_altitudes_from_open
+from .metadata import ImageClass
 
 
-class HighAccuracyFOVCalculator:
-    def __init__(self,image:ImageDrone):
+class FOVCalculator:
+    def __init__(self, image:ImageClass):
 
         mp.dps = 50  # set a higher precision
         global latitude, longitude, lens_FOVh, lens_FOVw
@@ -63,7 +62,7 @@ class HighAccuracyFOVCalculator:
         else:
             pitch_rad = radians(180 - gimbal_pitch_deg)
 
-        if config.correct_magnetic_declinaison:
+        if ImageClass.correct_magnetic_declination:
             yaw_rad = (mp.pi / 2) - radians(gimbal_yaw_deg + declination)
         else:
             yaw_rad = (mp.pi / 2) - radians(gimbal_yaw_deg)
@@ -117,39 +116,39 @@ class HighAccuracyFOVCalculator:
         # Apply rotation to each ray
         return [Vector(*(q * np.quaternion(0, ray.x, ray.y, ray.z) * q.inverse()).vec) for ray in rays]
 
-    def get_fov_bbox(self):
+    def get_fov_bbox(self, image:ImageClass):
         try:
             FOVw, FOVh = self.calculate_fov_dimensions()
             rotated_vectors = self.get_bounding_polygon(FOVw, FOVh)
             utmx, utmy, zone_number, zone_letter = gps_to_utm(latitude, longitude)
             new_altitude = None
             # Determine new altitude based on different data sources
-            if config.dtm_path:
+            if ImageClass.dsm_path:
                 new_altitude = get_altitude_at_point(utmx, utmy)
-            if config.global_elevation:
+            if ImageClass.global_elevation:
                 new_altitude = get_altitude_from_open(latitude, longitude)
-            if config.relative_altitude == 0.0:
-                new_altitude = config.absolute_altitude
-            if new_altitude and abs(new_altitude - config.relative_altitude) > 20:
-                new_altitude = config.relative_altitude
-            if config.absolute_altitude == config.relative_altitude:
+            if image.relative_altitude == 0.0:
+                new_altitude = image.absolute_altitude
+            if new_altitude and abs(new_altitude - image.relative_altitude) > 20:
+                new_altitude = image.relative_altitude
+            if image.absolute_altitude == image.relative_altitude:
                 new_altitude = get_altitude_from_open(latitude, longitude)
             if new_altitude is None:  # and not config.dtm_path or not config.global_elevation is False or config.rtk:
-                new_altitude = config.relative_altitude
-                if config.global_elevation is True or config.dtm_path:
-                    warnings.warn(f"Failed to get elevation for {config.im_file_name}, using drone altitude.")
+                new_altitude = image.relative_altitude
+                if ImageClass.global_elevation is True or ImageClass.dsm_path:
+                    warnings.warn(f"Failed to get elevation for {image.file_name}, using drone altitude.")
 
             corrected_altitude = self._atmospheric_refraction_correction(new_altitude)
 
-            elevation_bbox = HighAccuracyFOVCalculator.get_ray_ground_intersections(rotated_vectors, Vector(0, 0, float(
+            elevation_bbox = FOVCalculator.get_ray_ground_intersections(rotated_vectors, Vector(0, 0, float(
                 corrected_altitude)))
             translated_bbox = find_geodetic_intersections(elevation_bbox, longitude, latitude)
             self.image.center_distance = drone_distance_to_polygon_center(translated_bbox, (utmx, utmy), corrected_altitude)
             new_translated_bbox = translated_bbox
-            if config.dtm_path:
+            if ImageClass.dsm_path:
                 altitudes = [get_altitude_at_point(*box[:2]) for box in new_translated_bbox]
                 if None in altitudes:
-                    warnings.warn(f"Failed to get elevation for image {config.im_file_name}. See log for details.")
+                    warnings.warn(f"Failed to get elevation for image {image.file_name}. See log for details.")
                     return translate_to_wgs84(new_translated_bbox, longitude, latitude)
 
                 # Calculate the ratios of distances to check the 5 times condition
@@ -158,15 +157,15 @@ class HighAccuracyFOVCalculator:
                              for i, box in enumerate(new_translated_bbox)]
                 for dist in distances:
                     if any(other_dist * 6 < dist for other_dist in distances if other_dist != dist):
-                        warnings.warn(f"One side of the polygon for {config.im_file_name} is at least 5 times longer than another.")
+                        warnings.warn(f"One side of the polygon for {image.file_name} is at least 5 times longer than another.")
                         return translate_to_wgs84(new_translated_bbox, longitude, latitude)
 
-            if config.global_elevation is True:
+            if ImageClass.global_elevation is True:
                 trans_utmbox = [utm_to_latlon(box[0], box[1], zone_number, zone_letter) for box in new_translated_bbox]
                 altitudes = get_altitudes_from_open(trans_utmbox)
 
                 if None in altitudes:
-                    warnings.warn(f"Failed to get elevation at point for {config.im_file_name}.")
+                    warnings.warn(f"Failed to get elevation at point for {image.file_name}.")
                     return translate_to_wgs84(new_translated_bbox, longitude, latitude)
 
                 # Calculate the ratios of distances to check the 5 times condition
@@ -176,7 +175,7 @@ class HighAccuracyFOVCalculator:
                 for dist in distances:
                     if any(other_dist * 5 < dist for other_dist in distances if other_dist != dist):
                         warnings.warn(
-                            f"One side of the polygon for {config.im_file_name} is at least 5 times longer than another.")
+                            f"One side of the polygon for {image.file_name} is at least 5 times longer than another.")
                         return translate_to_wgs84(new_translated_bbox, longitude, latitude)
 
             # If no special conditions are met, process normally
@@ -199,8 +198,8 @@ class HighAccuracyFOVCalculator:
             list: A list of Vector objects representing the intersection points on the ground.
         """
 
-        intersections = [HighAccuracyFOVCalculator.find_ray_ground_intersection(ray, origin) for ray in rays if
-                         HighAccuracyFOVCalculator.find_ray_ground_intersection(ray, origin) is not None]
+        intersections = [FOVCalculator.find_ray_ground_intersection(ray, origin) for ray in rays if
+                         FOVCalculator.find_ray_ground_intersection(ray, origin) is not None]
 
         return intersections
 
@@ -261,6 +260,4 @@ def drone_distance_to_polygon_center(polygon_coords, drone_coords, drone_altitud
     centroid_3d = (centroid[0], centroid[1], 0)
     drone_position_3d = (drone_coords[0], drone_coords[1], drone_altitude)
     center_distance=distance_3d(centroid_3d, drone_position_3d)
-    config.update_center_distance(center_distance)
     return center_distance
-    # Calculate and return the 3D distance

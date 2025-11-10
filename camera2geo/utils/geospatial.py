@@ -8,7 +8,7 @@ import warnings
 
 from pyproj import Transformer, CRS, Geod
 
-from . import config
+from .metadata import ImageClass
 
 
 def decimal_degrees_to_utm(latitude, longitude):
@@ -197,13 +197,12 @@ def translate_to_wgs84(bbox, drone_lon, drone_lat):
     """
     # Determine UTM zone and hemisphere from drone's coordinates
     crs_geo_outDD = "epsg:4326"
-    crs_geo_out = f"epsg:{config.epsg_code}"
+    crs_geo_out = f"epsg:{ImageClass.epsg}"
     # crs_utm = f"+proj=utm +zone={utm_zone} +{hemisphere} +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
     # utm_crs_code = find_epsg_code(bbox[0][0], bbox[0][1])
     utm_zone = int((drone_lon + 180) / 6) + 1
     hemisphere = "north" if drone_lat >= 0 else "south"
     crs_geo_outDD = "epsg:4326"
-    # crs_geo_out = config.epsg_code
     crs_utm = f"+proj=utm +zone={utm_zone} +{hemisphere} +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
 
     # Initialize transformers for coordinate conversion
@@ -224,7 +223,6 @@ def translate_to_wgs84(bbox, drone_lon, drone_lat):
         # Convert points back to geographic coordinates
         point_lat, point_lon = transformer_to_geo.transform(x, y)
         dd_lat, dd_lon = transformer_to_decdree.transform(x, y)
-        # print("\nEPSG code:", config.epsg_code)
         # print("UTM CRS:", crs_utm)
         # print("Input UTM coordinates:", point_lon, point_lat)
         # print("Output geographic coordinates:", point_lon, point_lat)
@@ -250,7 +248,7 @@ def translate_points_to_utm(bbox, drone_lon, drone_lat):
     utm_zone = int((drone_lon + 180) / 6) + 1
     hemisphere = "north" if drone_lat >= 0 else "south"
     crs_geo = "epsg:4326"
-    # crs_geo_out = config.epsg_code
+    # crs_geo_out = ImageDrone.epsg
     crs_utm = f"+proj=utm +zone={utm_zone} +{hemisphere} +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
 
     # Initialize transformers for coordinate conversion
@@ -277,7 +275,7 @@ def geographic_to_utm(lon, lat):
     epsg_code = int(f"{hemisphere_prefix}{utm_zone}")
     # print(epsg_code)
     crs_utm = CRS.from_epsg(epsg_code)
-    transformer = Transformer.from_crs(crs_utm, config.epsg_code, always_xy=True)
+    transformer = Transformer.from_crs(crs_utm, ImageClass.epsg, always_xy=True)
     easting, northing = transformer.transform(lon, lat)
     return easting, northing, epsg_code, hemisphere
 
@@ -302,7 +300,7 @@ def find_geodetic_intersections(bbox, drone_lon, drone_lat):
 
     # Initialize transformers for coordinate conversion
     transformer_to_utm = Transformer.from_crs(crs_geo_in, crs_utm, always_xy=True)
-    transformer_to_geo = Transformer.from_crs(crs_utm, config.epsg_code, always_xy=True)
+    transformer_to_geo = Transformer.from_crs(crs_utm, ImageClass.epsg, always_xy=True)
 
     # Convert drone's location to UTM coordinates
     drone_easting, drone_northing = transformer_to_utm.transform(drone_lon, drone_lat)
