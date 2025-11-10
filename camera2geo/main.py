@@ -21,7 +21,7 @@ def camera2geo(
     image_equalize: bool = False,
     lens_correction: bool = False,
     elevation_data: str | bool = False,
-    sensor_info_csv: str = f"{os.path.dirname(os.path.abspath(__file__))}/drone_sensors.csv",
+    sensor_info_csv: str = f"{os.path.dirname(os.path.abspath(__file__))}/sensors.csv",
 ) -> list:
     """
     Convert raw camera or drone images to georeferenced GeoTIFFs. This function reads image EXIF metadata, determines camera geometry, and projects the image footprint into geographic space. A GeoTIFF is produced for each input image using ground elevation data from either a local DSM or an online elevation service.
