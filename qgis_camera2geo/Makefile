@@ -1,7 +1,7 @@
 #/***************************************************************************
 # camera2geo
 #
-# Camera2Geo converts images between camera and geographic projection spaces
+# Camera to geographic space image convertion
 #							 -------------------
 #		begin				: 2025-10-19
 #		git sha				: $Format:%H$
