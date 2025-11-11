@@ -3,8 +3,7 @@
 #  __license__ = "AGPL"
 #  __version__ = "1.0"
 
-import numpy as np
-import quaternion
+from scipy.spatial.transform import Rotation as R
 import warnings
 
 from mpmath import mp, radians, sqrt
@@ -133,15 +132,14 @@ class FOVCalculator:
             declination,
         )
 
-        q = quaternion.from_euler_angles(adj_yaw, adj_pitch, adj_roll)
-        # Normalize the quaternion
-        q = q.normalized()
+        # Create rotation
+        r = R.from_euler("ZYX", [float(adj_yaw), float(adj_pitch), float(adj_roll)])
 
-        # Apply rotation to each ray
-        return [
-            Vector(*(q * np.quaternion(0, ray.x, ray.y, ray.z) * q.inverse()).vec)
-            for ray in rays
-        ]
+        # Rotate each ray vector
+        rotated = r.apply([(float(ray.x), float(ray.y), float(ray.z)) for ray in rays])
+
+        # Convert back to Vector objects
+        return [Vector(*vec) for vec in rotated]
 
     def get_fov_bbox(self, image: ImageClass):
         try:
