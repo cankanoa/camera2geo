@@ -133,10 +133,35 @@ pip install . # Normal dependencies
 pip install -e ".[dev]"   # Developer dependencies
 ```
 
-#  Python Tests
-All public functions in the Python library have tests. They are automatically run when commiting to main and can be run locally with following command:
+##  Development Guide
+### Contributing
+All contributions are welcome. This library is licensed under a AGPL-3.0 license. Please be respectful when contributing. To suggest a feature please create an [issue](https://github.com/cankanoa/camera2geo/issues). Te report a bug please create an [issue](https://github.com/cankanoa/camera2geo/issues). To add code to the library, please create a pull request against main.
+
+### Code Formatting
+This library uses black formatting. Pre commit will check formatting but if you want to manually you can use the following:
+
+```bash
+make check-format # Checks format
+make format # Actually formats the code
+```
+
+### Tests
+All public functions in the Python library should have tests. They are automatically run when commiting to main and can be run locally with following command:
 ```bash
 pytest
 ```
 
+### Building From Source
+Use the following commands to build code:
 
+```bash
+make python-build # Python wheel
+make qgis-build # Qgis zip plugin file
+```
+
+### Publish to Github, Pypi, and QGIS
+
+Publishing a new version to GitHub versions, Pypi library, and QGIS plugin is all done with the single command below. This will automatically make a GitHub tag which will trigger workflows for each publishing method.
+```bash
+make version version=1.2.3
+```
