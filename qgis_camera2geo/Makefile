@@ -1,7 +1,7 @@
 #/***************************************************************************
 # camera2geo
 #
-# Camera to geographic space image convertion
+# Camera to geographic space image conversion
 #							 -------------------
 #		begin				: 2025-10-19
 #		git sha				: $Format:%H$

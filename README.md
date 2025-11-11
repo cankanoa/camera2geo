@@ -1,4 +1,4 @@
-# Camera2Geo: camera to geographic space image convertion
+# Camera2Geo: camera to geographic space image conversion
 
 [![PyPI version](https://img.shields.io/pypi/v/camera2geo.svg)](https://pypi.org/project/camera2geo/)
 [![QGIS Plugin](https://img.shields.io/badge/QGIS-Plugin-589632?logo=qgis)](https://plugins.qgis.org/plugins/qgis_camera2geo/)
@@ -60,7 +60,7 @@ camera2geo \
 5. **Image Correction & Enhancement (optional)**
    - Lens distortion correction
    - Radiometric equalization
-6. **Geographic Coordinate Convertion:** Computes ground footprint and projection based on camera model, orientation, and elevation, then reprojects into the target EPSG.
+6. **Geographic Coordinate Conversion:** Computes ground footprint and projection based on camera model, orientation, and elevation, then reprojects into the target EPSG.
 7. **Output GeoTIFF Creation:** Writes georeferenced TIFFs to the output directory; optionally writes as COG.
 
 ### read_metadata()

@@ -5,7 +5,7 @@
 [general]
 name=Camera2geo
 qgisMinimumVersion=3.0
-description=Camera to geographic space image convertion
+description=Camera to geographic space image conversion
 version=1.0
 author=Kanoa Lindiwe LLC
 email=cankanoa@gmail.com
