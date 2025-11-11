@@ -24,7 +24,9 @@ def decimal_degrees_to_utm(latitude, longitude):
     """
     zone_number = int((longitude + 180) / 6) + 1
     is_southern = latitude < 0
-    utm_crs = CRS(proj="utm", zone=zone_number, ellps="WGS84", datum="WGS84", south=is_southern)
+    utm_crs = CRS(
+        proj="utm", zone=zone_number, ellps="WGS84", datum="WGS84", south=is_southern
+    )
     wgs84_crs = CRS.from_epsg(4326)
 
     transformer = Transformer.from_crs(wgs84_crs, utm_crs, always_xy=True)
@@ -42,7 +44,9 @@ def gps_to_utm(latitude, longitude):
     zone_number = longitude_to_utm_zone(longitude)
     hemisphere = "north" if latitude >= 0 else "south"
     is_southern = latitude < 0
-    utm_crs = CRS(proj="utm", zone=zone_number, ellps="WGS84", datum="WGS84", south=is_southern)
+    utm_crs = CRS(
+        proj="utm", zone=zone_number, ellps="WGS84", datum="WGS84", south=is_southern
+    )
     wgs84_crs = CRS(proj="latlong", datum="WGS84")
     transformer = Transformer.from_crs(wgs84_crs, utm_crs, always_xy=True)
     x, y = transformer.transform(longitude, latitude)  # Corrected order
@@ -52,7 +56,9 @@ def gps_to_utm(latitude, longitude):
 def get_utm_transformer(latitude, longitude):
     zone_number = longitude_to_utm_zone(longitude)
     is_southern = latitude < 0
-    utm_crs = CRS(proj="utm", zone=zone_number, ellps="WGS84", datum="WGS84", south=is_southern)
+    utm_crs = CRS(
+        proj="utm", zone=zone_number, ellps="WGS84", datum="WGS84", south=is_southern
+    )
     wgs84_crs = CRS(proj="latlong", datum="WGS84")
     transformer = Transformer.from_crs(wgs84_crs, utm_crs, always_xy=True)
     return transformer
@@ -88,8 +94,10 @@ def utm_to_latlon(easting, northing, zone_number, hemi):
     Returns:
     tuple: Latitude and longitude in decimal degrees.
     """
-    is_southern = (hemi.lower().startswith("s"))
-    utm_crs = CRS(proj="utm", zone=zone_number, ellps="WGS84", datum="WGS84", south=is_southern)
+    is_southern = hemi.lower().startswith("s")
+    utm_crs = CRS(
+        proj="utm", zone=zone_number, ellps="WGS84", datum="WGS84", south=is_southern
+    )
     wgs84_crs = CRS.from_epsg(4326)
 
     transformer = Transformer.from_crs(utm_crs, wgs84_crs, always_xy=True)
@@ -137,7 +145,13 @@ def proj_stuff(center_latitude, zone_number):
     is_southern = center_latitude < 0
 
     try:
-        utm_crs = CRS(proj="utm", zone=zone_number, ellps="WGS84", datum="WGS84", south=is_southern)
+        utm_crs = CRS(
+            proj="utm",
+            zone=zone_number,
+            ellps="WGS84",
+            datum="WGS84",
+            south=is_southern,
+        )
         wgs84_crs = CRS(proj="latlong", datum="WGS84")
         transformer = Transformer.from_crs(utm_crs, wgs84_crs, always_xy=True)
     except Exception as e:
@@ -177,7 +191,9 @@ def calculate_geographic_offset(latitude, longitude, distance_meters, bearing_de
     """
     try:
         geod = Geod(ellps="WGS84")
-        new_longitude, new_latitude, _ = geod.fwd(longitude, latitude, bearing_degrees, distance_meters)
+        new_longitude, new_latitude, _ = geod.fwd(
+            longitude, latitude, bearing_degrees, distance_meters
+        )
     except Exception as e:
         warnings.warn(f"Error calculating geographic offset: {e}")
     return new_latitude, new_longitude
@@ -208,7 +224,9 @@ def translate_to_wgs84(bbox, drone_lon, drone_lat):
     # Initialize transformers for coordinate conversion
     # transformer_to_utm = Transformer.from_crs(crs_geo_in, crs_utm, always_xy=True)
     transformer_to_geo = Transformer.from_crs(crs_utm, crs_geo_out, always_xy=True)
-    transformer_to_decdree = Transformer.from_crs(crs_utm, crs_geo_outDD, always_xy=True)
+    transformer_to_decdree = Transformer.from_crs(
+        crs_utm, crs_geo_outDD, always_xy=True
+    )
 
     # Convert drone's location to UTM coordinates
     # drone_easting, drone_northing = transformer_to_utm.transform(drone_lon, drone_lat)
@@ -260,7 +278,10 @@ def translate_points_to_utm(bbox, drone_lon, drone_lat):
     translated_bbox = []
     for point in bbox:
         # Translate bounding box points based on drone's UTM coordinates
-        point_easting, point_northing = drone_easting + point[0], drone_northing + point[1]
+        point_easting, point_northing = (
+            drone_easting + point[0],
+            drone_northing + point[1],
+        )
         translated_bbox.append((point_easting, point_northing))
 
     return translated_bbox
@@ -308,10 +329,15 @@ def find_geodetic_intersections(bbox, drone_lon, drone_lat):
     translated_bbox = []
     for point in bbox:
         # Translate and rotate bounding box points
-        point_easting, point_northing = drone_easting + point.x, drone_northing + point.y
+        point_easting, point_northing = (
+            drone_easting + point.x,
+            drone_northing + point.y,
+        )
 
         # Convert points back to geographic coordinates
-        point_lon, point_lat = transformer_to_geo.transform(point_easting, point_northing)
+        point_lon, point_lat = transformer_to_geo.transform(
+            point_easting, point_northing
+        )
         translated_bbox.append((point_easting, point_northing))
 
     return translated_bbox
@@ -332,7 +358,10 @@ def translate_to_geo_tgt(intersection, drone_lon, drone_lat):
     drone_easting, drone_northing = transformer_to_utm.transform(drone_lon, drone_lat)
 
     # Translate and rotate intersection point
-    point_easting, point_northing = drone_easting + intersection.x, drone_northing + intersection.y
+    point_easting, point_northing = (
+        drone_easting + intersection.x,
+        drone_northing + intersection.y,
+    )
 
     # Convert points back to geographic coordinates
     lon, lat = transformer_to_geo.transform(point_easting, point_northing)

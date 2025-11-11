@@ -29,6 +29,7 @@ from .metadata import ImageClass
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".tif", ".tiff"}
 
+
 def warp_image_to_polygon(img_arry, polygon, coordinate_array):
     """
     Warps an image array to fit within a specified polygon using coordinates mapping
@@ -49,12 +50,14 @@ def warp_image_to_polygon(img_arry, polygon, coordinate_array):
         img_arry_equalized = img_arry
 
     # Continue with warping as before
-    src_points = np.float32([
-        [0, 0],
-        [img_arry_equalized.shape[1], 0],
-        [img_arry_equalized.shape[1], img_arry_equalized.shape[0]],
-        [0, img_arry_equalized.shape[0]]
-    ])
+    src_points = np.float32(
+        [
+            [0, 0],
+            [img_arry_equalized.shape[1], 0],
+            [img_arry_equalized.shape[1], img_arry_equalized.shape[0]],
+            [0, img_arry_equalized.shape[0]],
+        ]
+    )
 
     # Calculate bounds, resolution, and destination points as before
 
@@ -62,14 +65,23 @@ def warp_image_to_polygon(img_arry, polygon, coordinate_array):
     resolution_x = (maxx - minx) / img_arry_equalized.shape[1]
     resolution_y = (maxy - miny) / img_arry_equalized.shape[0]
 
-    dst_points = np.float32([gps_to_pixel(coord, minx, maxy, resolution_x, resolution_y) for coord in coordinate_array])
+    dst_points = np.float32(
+        [
+            gps_to_pixel(coord, minx, maxy, resolution_x, resolution_y)
+            for coord in coordinate_array
+        ]
+    )
 
     # Apply warping to the CLAHE-processed image
     try:
         h_matrix, _ = cv.findHomography(src_points, dst_points, cv.RANSAC, 5)
-        georef_image_array = cv.warpPerspective(img_arry_equalized, h_matrix,
-                                                (img_arry_equalized.shape[1], img_arry_equalized.shape[0]),
-                                                borderMode=cv.BORDER_CONSTANT, borderValue=(0, 0, 0))
+        georef_image_array = cv.warpPerspective(
+            img_arry_equalized,
+            h_matrix,
+            (img_arry_equalized.shape[1], img_arry_equalized.shape[0]),
+            borderMode=cv.BORDER_CONSTANT,
+            borderValue=(0, 0, 0),
+        )
     except Exception as e:
         warnings.warn(f"Error warping image to polygon: {e}")
         return None
@@ -171,18 +183,33 @@ def array2ds(cv2_array, polygon_wkt):
     crs = rasterio.crs.CRS.from_epsg(ImageClass.epsg)
 
     with rasterio.MemoryFile() as memfile:
-        with memfile.open(driver='GTiff', height=height, width=width, count=bands, dtype=dtype, crs=crs,
-                          transform=transform) as dst:
+        with memfile.open(
+            driver="GTiff",
+            height=height,
+            width=width,
+            count=bands,
+            dtype=dtype,
+            crs=crs,
+            transform=transform,
+        ) as dst:
             if len(cv2_array.shape) == 3:  # For color images
                 for i in range(1, bands + 1):
                     dst.write(cv2_array[:, :, i - 1], i)
                     # Set color interpretation for each band if applicable
                     if bands == 3:
-                        color_interpretations = [ColorInterp.red, ColorInterp.green, ColorInterp.blue]
+                        color_interpretations = [
+                            ColorInterp.red,
+                            ColorInterp.green,
+                            ColorInterp.blue,
+                        ]
                         dst.colorinterp = color_interpretations[:bands]
                     elif bands == 4:
-                        color_interpretations = [ColorInterp.red, ColorInterp.green, ColorInterp.blue,
-                                                 ColorInterp.alpha]
+                        color_interpretations = [
+                            ColorInterp.red,
+                            ColorInterp.green,
+                            ColorInterp.blue,
+                            ColorInterp.alpha,
+                        ]
                         dst.colorinterp = color_interpretations[:bands]
             else:  # For grayscale images
                 dst.write(cv2_array, 1)
@@ -194,7 +221,7 @@ def array2ds(cv2_array, polygon_wkt):
 @contextmanager
 def suppress_stdout_stderr():
     """A context manager that redirects stdout and stderr to devnull"""
-    with open(os.devnull, 'w') as null:
+    with open(os.devnull, "w") as null:
         old_stdout, old_stderr = sys.stdout, sys.stderr
         sys.stdout, sys.stderr = null, null
         try:
@@ -202,7 +229,8 @@ def suppress_stdout_stderr():
         finally:
             sys.stdout, sys.stderr = old_stdout, old_stderr
 
-def warp_to_geotiff_file(geotiff_file:str, dataset):
+
+def warp_to_geotiff_file(geotiff_file: str, dataset):
     """
     Warps a georeferenced image array into a GeoTIFF file.
 
@@ -215,18 +243,21 @@ def warp_to_geotiff_file(geotiff_file:str, dataset):
     dst_crs = rasterio.crs.CRS.from_epsg(ImageClass.epsg)
 
     transform, width, height = calculate_default_transform(
-        dataset.crs, dst_crs, dataset.width, dataset.height, *dataset.bounds)
+        dataset.crs, dst_crs, dataset.width, dataset.height, *dataset.bounds
+    )
 
     kwargs = dataset.meta.copy()
-    kwargs.update({
-        'crs': dst_crs,
-        'transform': transform,
-        'width': width,
-        'height': height,
-        'nodata': 0  # Set nodata value to 0 (transparent)
-    })
+    kwargs.update(
+        {
+            "crs": dst_crs,
+            "transform": transform,
+            "width": width,
+            "height": height,
+            "nodata": 0,  # Set nodata value to 0 (transparent)
+        }
+    )
 
-    with rasterio.open(geotiff_file, 'w', **kwargs) as dst:
+    with rasterio.open(geotiff_file, "w", **kwargs) as dst:
         for i in range(1, dataset.count + 1):
             reproject(
                 source=rasterio.band(dataset, i),
@@ -235,13 +266,19 @@ def warp_to_geotiff_file(geotiff_file:str, dataset):
                 src_crs=dataset.crs,
                 dst_transform=transform,
                 dst_crs=dst_crs,
-                resampling=Resampling.nearest)
+                resampling=Resampling.nearest,
+            )
 
     if ImageClass.cog:
         # Convert the GeoTIFF to a Cloud Optimized GeoTIFF (COG)
-        cogeo_profile = 'deflate'
+        cogeo_profile = "deflate"
         with suppress_stdout_stderr():
-            cog_translate(geotiff_file, geotiff_file, cog_profiles.get(cogeo_profile), in_memory=True)
+            cog_translate(
+                geotiff_file,
+                geotiff_file,
+                cog_profiles.get(cogeo_profile),
+                in_memory=True,
+            )
 
 
 def calculate_grid(num_images):
@@ -254,8 +291,16 @@ def calculate_grid(num_images):
     return rows, cols
 
 
-def create_mosaic(directory, output_base_path, mosaic_size=(400, 350), border_size=1, border_color='black'):
-    images_paths = [p for p in Path(directory).iterdir() if p.suffix.lower() in IMAGE_EXTENSIONS]
+def create_mosaic(
+    directory,
+    output_base_path,
+    mosaic_size=(400, 350),
+    border_size=1,
+    border_color="black",
+):
+    images_paths = [
+        p for p in Path(directory).iterdir() if p.suffix.lower() in IMAGE_EXTENSIONS
+    ]
     num_images = len(images_paths)
     if num_images == 0:
         return
@@ -266,7 +311,7 @@ def create_mosaic(directory, output_base_path, mosaic_size=(400, 350), border_si
     tile_width = mosaic_size[0] // images_per_row
     tile_height = mosaic_size[1] // images_per_column
 
-    mosaic_image = Image.new('RGB', mosaic_size)
+    mosaic_image = Image.new("RGB", mosaic_size)
     x_offset, y_offset = 0, 0
 
     for img_path in images_paths:
@@ -275,8 +320,8 @@ def create_mosaic(directory, output_base_path, mosaic_size=(400, 350), border_si
         # Check if the image is a single band image
         if len(img.getbands()) == 1:
             # Convert the image to 'L' mode if it is not already
-            if img.mode != 'L':
-                img = img.convert('L')
+            if img.mode != "L":
+                img = img.convert("L")
             # Convert the PIL Image to a numpy array
             img_array = np.array(img)
             # Convert the single band image to a 3 band image using OpenCV
@@ -284,7 +329,7 @@ def create_mosaic(directory, output_base_path, mosaic_size=(400, 350), border_si
             # Convert the numpy array back to a PIL Image
             img = Image.fromarray(img_array)
         else:
-            img = img.convert('RGB')  # Convert image to 'RGB' mode
+            img = img.convert("RGB")  # Convert image to 'RGB' mode
 
         # Always scale based on the tile height to image height ratio
         scale_factor = tile_height / img.height
@@ -293,7 +338,9 @@ def create_mosaic(directory, output_base_path, mosaic_size=(400, 350), border_si
         img_resized = img.resize(new_size, Image.Resampling.LANCZOS)
 
         # Add a border to the image
-        img_resized = ImageOps.expand(img_resized, border=border_size, fill=border_color)
+        img_resized = ImageOps.expand(
+            img_resized, border=border_size, fill=border_color
+        )
 
         x_pad = (tile_width - img_resized.width) // 2
 
@@ -306,9 +353,11 @@ def create_mosaic(directory, output_base_path, mosaic_size=(400, 350), border_si
 
     # Adjusting output path to ensure it points to the correct subdirectory and file
     output_path = Path(output_base_path) / "mosaic.jpg"
-    output_path.parent.mkdir(parents=True, exist_ok=True)  # Ensure the mosaic directory exists
+    output_path.parent.mkdir(
+        parents=True, exist_ok=True
+    )  # Ensure the mosaic directory exists
 
-    mosaic_image.save(output_path, format='JPEG')
+    mosaic_image.save(output_path, format="JPEG")
 
 
 def set_raster_extents(image):
@@ -350,18 +399,24 @@ def set_raster_extents(image):
                 else:
                     warnings.warn(f"Unsupported data type: {str(jpeg_img.dtype)}")
 
-                mod.initialize(focal_length, aperture, distance, pixel_format=pixel_format)
+                mod.initialize(
+                    focal_length, aperture, distance, pixel_format=pixel_format
+                )
 
                 # Apply geometry distortion correction and obtain distortion maps
                 maps = mod.apply_geometry_distortion()
                 map_x = maps[:, :, 0]
                 map_y = maps[:, :, 1]
 
-                img_undistorted = cv2.remap(jpeg_img, map_x, map_y, interpolation=cv2.INTER_LANCZOS4)
+                img_undistorted = cv2.remap(
+                    jpeg_img, map_x, map_y, interpolation=cv2.INTER_LANCZOS4
+                )
             except IndexError as e:
                 ImageClass.lens_correction = False
                 img_undistorted = np.array(jpeg_img)
-                warnings.warn("Cannot correct lens distortion. Camera properties not found in database.")
+                warnings.warn(
+                    "Cannot correct lens distortion. Camera properties not found in database."
+                )
                 warnings.warn(f"Index error: {e} for {image.image_path}")
         else:
             img_undistorted = np.array(jpeg_img)
@@ -373,14 +428,18 @@ def set_raster_extents(image):
         else:
             adjImg = cv2.cvtColor(img_undistorted, cv2.COLOR_BGR2RGBA)
 
-        rectify_and_warp_to_geotiff(adjImg, image.geotiff_file, fixed_polygon, image.coord_array)
+        rectify_and_warp_to_geotiff(
+            adjImg, image.geotiff_file, fixed_polygon, image.coord_array
+        )
     except FileNotFoundError as e:
         warnings.warn(f"File not found: {image.image_path}. {e}")
     except Exception as e:
         warnings.warn(f"Error opening or processing image: {e}")
 
 
-def rectify_and_warp_to_geotiff(jpeg_img_array, geotiff_file, fixed_polygon, coordinate_array):
+def rectify_and_warp_to_geotiff(
+    jpeg_img_array, geotiff_file, fixed_polygon, coordinate_array
+):
     """
     Warps and rectifies a JPEG image array to a GeoTIFF format based on a fixed polygon and coordinate array.
 
@@ -394,7 +453,9 @@ def rectify_and_warp_to_geotiff(jpeg_img_array, geotiff_file, fixed_polygon, coo
     polygon_wkt = str(fixed_polygon)
 
     try:
-        georef_image_array = warp_image_to_polygon(jpeg_img_array, fixed_polygon, coordinate_array)
+        georef_image_array = warp_image_to_polygon(
+            jpeg_img_array, fixed_polygon, coordinate_array
+        )
         dsArray = array2ds(georef_image_array, polygon_wkt)
     except Exception as e:
         warnings.warn(f"Error during warping or dataset creation: {e}")
@@ -407,10 +468,8 @@ def rectify_and_warp_to_geotiff(jpeg_img_array, geotiff_file, fixed_polygon, coo
 
 
 def generate_geotiff(
-    self,
-    input_dir: str,
-    output_dir: str,
-    output_path: str | None = None):
+    self, input_dir: str, output_dir: str, output_path: str | None = None
+):
     """
     Generate a GeoTIFF for this image.
 
@@ -420,7 +479,11 @@ def generate_geotiff(
         output_path (str | None): Explicit output path. If provided, overrides output_dir.
     """
     input_image = Path(input_dir) / self.file_name
-    output_file = Path(output_path) if output_path else Path(output_dir) / f"{Path(self.file_name).stem}.tif"
+    output_file = (
+        Path(output_path)
+        if output_path
+        else Path(output_dir) / f"{Path(self.file_name).stem}.tif"
+    )
 
     self.image_path = str(input_image)
     self.geotiff_file = str(output_file)

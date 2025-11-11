@@ -15,7 +15,8 @@ from urllib.error import HTTPError
 from time import sleep
 
 from .metadata import ImageClass
-ATTEMPS_NUMBERS:int= 10
+
+ATTEMPS_NUMBERS: int = 10
 
 
 class ElevationAdjuster:
@@ -28,11 +29,14 @@ class ElevationAdjuster:
     def terrain_adjustment(self, col, row):
         try:
             row_f, col_f = float(row), float(col)
-            interpolated_elevation = map_coordinates(self.elevation_data, [[row_f], [col_f]], order=1, mode='nearest')[
-                0]
+            interpolated_elevation = map_coordinates(
+                self.elevation_data, [[row_f], [col_f]], order=1, mode="nearest"
+            )[0]
             return interpolated_elevation
         except Exception as e:
-            warnings.warn(f"Error calculating interpolated elevation: {e} for {self.image.file_name}. Switching to Default Altitudes.")
+            warnings.warn(
+                f"Error calculating interpolated elevation: {e} for {self.image.file_name}. Switching to Default Altitudes."
+            )
             return self.image.absolute_altitude
 
 
@@ -68,14 +72,16 @@ def get_altitude_at_point(x, y, image: ImageClass):
         elevation = elevation_data[row, col]
         return image.absolute_altitude - elevation
 
-    warnings.warn(f"Point ({x}, {y}) is outside the elevation data bounds for file {image.file_name}. Switching to default elevation.")
+    warnings.warn(
+        f"Point ({x}, {y}) is outside the elevation data bounds for file {image.file_name}. Switching to default elevation."
+    )
     return None
 
 
-def get_altitude_from_open(lat:float, long:float, image:ImageClass)->float:
+def get_altitude_from_open(lat: float, long: float, image: ImageClass) -> float:
     """
-        Get GPS terrain altitude from open-elevation.com using input lat and long
-        Returns corrected altitude.
+    Get GPS terrain altitude from open-elevation.com using input lat and long
+    Returns corrected altitude.
     """
 
     nb_of_failed_connection = 0
@@ -83,49 +89,61 @@ def get_altitude_from_open(lat:float, long:float, image:ImageClass)->float:
         try:
             url = f"https://api.open-elevation.com/api/v1/lookup?locations={lat},{long}"
             with urlopen(url) as response:
-                data = response.read().decode('utf-8')
-            elevation = json.loads(data)['results'][0]['elevation']
-            print(f"Successfull connection to OpenElevation for file{image.file_name} with coordinates {lat},{long}")
+                data = response.read().decode("utf-8")
+            elevation = json.loads(data)["results"][0]["elevation"]
+            print(
+                f"Successfull connection to OpenElevation for file{image.file_name} with coordinates {lat},{long}"
+            )
             return image.absolute_altitude - elevation
         except HTTPError as err:
-            warnings.warn(f"Connexion error for OpenElevation file:{image.file_name} coordinates {lat},{long}. Error: {err}")
+            warnings.warn(
+                f"Connexion error for OpenElevation file:{image.file_name} coordinates {lat},{long}. Error: {err}"
+            )
             nb_of_failed_connection += 1
             # Sleep random time before next try
             sleep(nb_of_failed_connection)
-    print(f"Too many failures for file {image.file_name}. Switching to default elevation.")
+    print(
+        f"Too many failures for file {image.file_name}. Switching to default elevation."
+    )
     image.elevation_mode = "plane"
     return None
 
-def get_altitudes_from_open(latlon_tupples:list[tuple], image: ImageClass)->list[float]:
-    """
-        Get GPS terrain altitude from open-elevation.com from a list of latlon tupples [(lat1,lon1),(lat2,lon2),...]
-        Returns list of corrected altitude.
-    """
-    url_coordinates=""
-    nb_of_coordinates=0
-    #Prepare url values
-    for coordinates in latlon_tupples:
-        url_coordinates+=f'{coordinates[0]},{coordinates[1]}|'
-        nb_of_coordinates+=1
-    #remove last |
-    url_coordinates=url_coordinates.rstrip('|')
 
+def get_altitudes_from_open(
+    latlon_tupples: list[tuple], image: ImageClass
+) -> list[float]:
+    """
+    Get GPS terrain altitude from open-elevation.com from a list of latlon tupples [(lat1,lon1),(lat2,lon2),...]
+    Returns list of corrected altitude.
+    """
+    url_coordinates = ""
+    nb_of_coordinates = 0
+    # Prepare url values
+    for coordinates in latlon_tupples:
+        url_coordinates += f"{coordinates[0]},{coordinates[1]}|"
+        nb_of_coordinates += 1
+    # remove last |
+    url_coordinates = url_coordinates.rstrip("|")
 
     nb_of_failed_connection = 0
     while nb_of_failed_connection < ATTEMPS_NUMBERS:
         try:
             url = f"https://api.open-elevation.com/api/v1/lookup?locations={url_coordinates}"
             with urlopen(url) as response:
-                data = response.read().decode('utf-8')
+                data = response.read().decode("utf-8")
 
-            print(f"Successfull connection to OpenElevation for file {image.file_name} with coordinates {latlon_tupples}")
+            print(
+                f"Successfull connection to OpenElevation for file {image.file_name} with coordinates {latlon_tupples}"
+            )
             # Extract altitude corrections
-            alitude_list=[]
-            for result in json.loads(data)['results']:
-                alitude_list.append(image.absolute_altitude - result['elevation'])
+            alitude_list = []
+            for result in json.loads(data)["results"]:
+                alitude_list.append(image.absolute_altitude - result["elevation"])
             return alitude_list
         except HTTPError as err:
-            warnings.warn(f"Unable to Connect to OpenElevation for file {image.file_name} with coordinates {latlon_tupples}. Error: {err}")
+            warnings.warn(
+                f"Unable to Connect to OpenElevation for file {image.file_name} with coordinates {latlon_tupples}. Error: {err}"
+            )
             nb_of_failed_connection += 1
             # Sleep random time before next try
             sleep(nb_of_failed_connection)

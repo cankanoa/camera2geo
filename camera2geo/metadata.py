@@ -7,9 +7,7 @@ from typing import Dict, Any, List
 from .utils.io import _resolve_paths
 
 
-def read_metadata(
-    input_images: str | List[str]
-    ):
+def read_metadata(input_images: str | List[str]):
     """
     Read metadata from one or more images and print the results as YAML and return values. Each parameter includes all metadata source fields that contribute to its value (primary + fallback).
 
@@ -38,51 +36,50 @@ def read_metadata(
 
             data = {
                 "file_name": get_many(["File:FileName"]),
-
                 "latitude": get_many(["Composite:GPSLatitude", "EXIF:GPSLatitude"]),
                 "longitude": get_many(["Composite:GPSLongitude", "EXIF:GPSLongitude"]),
-
                 "focal_length": get_many(["EXIF:FocalLength"]),
                 "focal_length35mm": get_many(["EXIF:FocalLengthIn35mmFormat"]),
-
-                "relative_altitude": get_many(["XMP:RelativeAltitude", "Composite:GPSAltitude"]),
-                "absolute_altitude": get_many(["XMP:AbsoluteAltitude", "Composite:GPSAltitude"]),
-
-                "gimbal_roll_degree": get_many([
-                    "XMP:GimbalRollDegree",
-                    "MakerNotes:CameraRoll",
-                    "XMP:Roll",
-                ]),
-                "gimbal_pitch_degree": get_many([
-                    "XMP:GimbalPitchDegree",
-                    "MakerNotes:CameraPitch",
-                    "XMP:Pitch",
-                ]),
-                "gimbal_yaw_degree": get_many([
-                    "XMP:GimbalYawDegree",
-                    "MakerNotes:CameraYaw",
-                    "XMP:Yaw",
-                ]),
-
-                "flight_pitch_degree": get_many([
-                    "XMP:FlightPitchDegree",
-                    "MakerNotes:Pitch"
-                ]),
-                "flight_roll_degree": get_many([
-                    "XMP:FlightRollDegree",
-                    "MakerNotes:Roll"
-                ]),
-                "flight_yaw_degree": get_many([
-                    "XMP:FlightYawDegree",
-                    "MakerNotes:Yaw"
-                ]),
-
+                "relative_altitude": get_many(
+                    ["XMP:RelativeAltitude", "Composite:GPSAltitude"]
+                ),
+                "absolute_altitude": get_many(
+                    ["XMP:AbsoluteAltitude", "Composite:GPSAltitude"]
+                ),
+                "gimbal_roll_degree": get_many(
+                    [
+                        "XMP:GimbalRollDegree",
+                        "MakerNotes:CameraRoll",
+                        "XMP:Roll",
+                    ]
+                ),
+                "gimbal_pitch_degree": get_many(
+                    [
+                        "XMP:GimbalPitchDegree",
+                        "MakerNotes:CameraPitch",
+                        "XMP:Pitch",
+                    ]
+                ),
+                "gimbal_yaw_degree": get_many(
+                    [
+                        "XMP:GimbalYawDegree",
+                        "MakerNotes:CameraYaw",
+                        "XMP:Yaw",
+                    ]
+                ),
+                "flight_pitch_degree": get_many(
+                    ["XMP:FlightPitchDegree", "MakerNotes:Pitch"]
+                ),
+                "flight_roll_degree": get_many(
+                    ["XMP:FlightRollDegree", "MakerNotes:Roll"]
+                ),
+                "flight_yaw_degree": get_many(
+                    ["XMP:FlightYawDegree", "MakerNotes:Yaw"]
+                ),
                 "image_width": get_many(["EXIF:ImageWidth", "EXIF:ExifImageWidth"]),
                 "image_height": get_many(["EXIF:ImageHeight", "EXIF:ExifImageHeight"]),
-
                 "max_aperture_value": get_many(["EXIF:MaxApertureValue"]),
                 "datetime_original": get_many(["EXIF:DateTimeOriginal"]),
-
                 "sensor_model_data": get_many(["EXIF:Model"]),
                 "sensor_index": get_many(["XMP:RigCameraIndex", "XMP:SensorIndex"]),
                 "sensor_make": get_many(["EXIF:Make"]),
@@ -95,10 +92,10 @@ def read_metadata(
 
 
 def apply_metadata(
-        input_images: str | List[str],
-        metadata: Dict[str, Any],
-        output_images: str | List[str] | None = None,
-    ):
+    input_images: str | List[str],
+    metadata: Dict[str, Any],
+    output_images: str | List[str] | None = None,
+):
     """
     Apply or remove metadata on one or more images. If `output_images` is not provided, edits are applied in-place; otherwise, input files are copied first.
 
@@ -123,7 +120,10 @@ def apply_metadata(
         output_image_paths = _resolve_paths(
             "create",
             output_images,
-            kwargs={"paths_or_bases": input_image_paths, "default_file_pattern": "$_Meta.tif"},
+            kwargs={
+                "paths_or_bases": input_image_paths,
+                "default_file_pattern": "$_Meta.tif",
+            },
         )
 
     # Split into set and delete operations
@@ -145,15 +145,11 @@ def apply_metadata(
                 et.set_tags(
                     [str(out_path)],
                     tags_to_set,
-                    params=["-overwrite_original_in_place"]
+                    params=["-overwrite_original_in_place"],
                 )
 
             # DELETE TAGS (must use execute)
             for tag in tags_to_delete:
-                et.execute(
-                    "-overwrite_original_in_place",
-                    f"-{tag}=",
-                    str(out_path)
-                )
+                et.execute("-overwrite_original_in_place", f"-{tag}=", str(out_path))
 
     return output_image_paths

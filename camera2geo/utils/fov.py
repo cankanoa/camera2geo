@@ -10,13 +10,22 @@ import warnings
 from mpmath import mp, radians, sqrt
 from vector3d.vector import Vector
 
-from .geospatial import find_geodetic_intersections, gps_to_utm, translate_to_wgs84, utm_to_latlon
-from .elevation import get_altitude_at_point, get_altitude_from_open, get_altitudes_from_open
+from .geospatial import (
+    find_geodetic_intersections,
+    gps_to_utm,
+    translate_to_wgs84,
+    utm_to_latlon,
+)
+from .elevation import (
+    get_altitude_at_point,
+    get_altitude_from_open,
+    get_altitudes_from_open,
+)
 from .metadata import ImageClass
 
 
 class FOVCalculator:
-    def __init__(self, image:ImageClass):
+    def __init__(self, image: ImageClass):
 
         mp.dps = 50  # set a higher precision
         global latitude, longitude, lens_FOVh, lens_FOVw
@@ -29,8 +38,12 @@ class FOVCalculator:
         lens_FOVw = self.image.lens_FOV_width
 
     def calculate_fov_dimensions(self):
-        FOVw = 2 * mp.atan(mp.mpf(self.image.sensor_width) / (2 * self.image.focal_length))
-        FOVh = 2 * mp.atan(mp.mpf(self.image.sensor_height) / (2 * self.image.focal_length))
+        FOVw = 2 * mp.atan(
+            mp.mpf(self.image.sensor_width) / (2 * self.image.focal_length)
+        )
+        FOVh = 2 * mp.atan(
+            mp.mpf(self.image.sensor_height) / (2 * self.image.focal_length)
+        )
 
         # _sensor_lens_correction now inside this function
         corrected_fov_width = FOVw * lens_FOVw
@@ -38,9 +51,10 @@ class FOVCalculator:
 
         return corrected_fov_width, corrected_fov_height
 
-
     @staticmethod
-    def calculate_rads_from_angles(gimbal_yaw_deg, gimbal_pitch_deg, gimbal_roll_deg, declination):
+    def calculate_rads_from_angles(
+        gimbal_yaw_deg, gimbal_pitch_deg, gimbal_roll_deg, declination
+    ):
         """
         Adjusts the gimbal's angles for magnetic declination and normalizes the roll orientation.
         - Yaw is adjusted for magnetic declination.
@@ -89,10 +103,18 @@ class FOVCalculator:
 
         # Define camera rays based on field of view
         rays = [
-            Vector(-mp.tan(FOVv / 2), mp.tan(FOVh / 2), 1).normalize(),  # Flip horizontally
-            Vector(-mp.tan(FOVv / 2), -mp.tan(FOVh / 2), 1).normalize(),  # Flip horizontally
-            Vector(mp.tan(FOVv / 2), -mp.tan(FOVh / 2), 1).normalize(),  # Flip horizontally
-            Vector(mp.tan(FOVv / 2), mp.tan(FOVh / 2), 1).normalize()  # Flip horizontally
+            Vector(
+                -mp.tan(FOVv / 2), mp.tan(FOVh / 2), 1
+            ).normalize(),  # Flip horizontally
+            Vector(
+                -mp.tan(FOVv / 2), -mp.tan(FOVh / 2), 1
+            ).normalize(),  # Flip horizontally
+            Vector(
+                mp.tan(FOVv / 2), -mp.tan(FOVh / 2), 1
+            ).normalize(),  # Flip horizontally
+            Vector(
+                mp.tan(FOVv / 2), mp.tan(FOVh / 2), 1
+            ).normalize(),  # Flip horizontally
         ]
         # Rotate rays according to camera orientation
         rotated_vectors = self.rotate_rays(rays)
@@ -104,19 +126,24 @@ class FOVCalculator:
         self.image.find_declination()
         declination = self.image.declination
 
-        adj_yaw, adj_pitch, adj_roll = self.calculate_rads_from_angles(self.image.gimbal_yaw_degree,
-                                                                       self.image.gimbal_pitch_degree,
-                                                                       self.image.gimbal_roll_degree,
-                                                                       declination)
+        adj_yaw, adj_pitch, adj_roll = self.calculate_rads_from_angles(
+            self.image.gimbal_yaw_degree,
+            self.image.gimbal_pitch_degree,
+            self.image.gimbal_roll_degree,
+            declination,
+        )
 
         q = quaternion.from_euler_angles(adj_yaw, adj_pitch, adj_roll)
         # Normalize the quaternion
         q = q.normalized()
 
         # Apply rotation to each ray
-        return [Vector(*(q * np.quaternion(0, ray.x, ray.y, ray.z) * q.inverse()).vec) for ray in rays]
+        return [
+            Vector(*(q * np.quaternion(0, ray.x, ray.y, ray.z) * q.inverse()).vec)
+            for ray in rays
+        ]
 
-    def get_fov_bbox(self, image:ImageClass):
+    def get_fov_bbox(self, image: ImageClass):
         try:
             FOVw, FOVh = self.calculate_fov_dimensions()
             rotated_vectors = self.get_bounding_polygon(FOVw, FOVh)
@@ -133,50 +160,107 @@ class FOVCalculator:
                 new_altitude = image.relative_altitude
             if image.absolute_altitude == image.relative_altitude:
                 new_altitude = get_altitude_from_open(latitude, longitude)
-            if new_altitude is None:  # and not config.dtm_path or not config.global_elevation is False or config.rtk:
+            if (
+                new_altitude is None
+            ):  # and not config.dtm_path or not config.global_elevation is False or config.rtk:
                 new_altitude = image.relative_altitude
                 if ImageClass.global_elevation is True or ImageClass.dsm_path:
-                    warnings.warn(f"Failed to get elevation for {image.file_name}, using drone altitude.")
+                    warnings.warn(
+                        f"Failed to get elevation for {image.file_name}, using drone altitude."
+                    )
 
             corrected_altitude = self._atmospheric_refraction_correction(new_altitude)
 
-            elevation_bbox = FOVCalculator.get_ray_ground_intersections(rotated_vectors, Vector(0, 0, float(
-                corrected_altitude)))
-            translated_bbox = find_geodetic_intersections(elevation_bbox, longitude, latitude)
-            self.image.center_distance = drone_distance_to_polygon_center(translated_bbox, (utmx, utmy), corrected_altitude)
+            elevation_bbox = FOVCalculator.get_ray_ground_intersections(
+                rotated_vectors, Vector(0, 0, float(corrected_altitude))
+            )
+            translated_bbox = find_geodetic_intersections(
+                elevation_bbox, longitude, latitude
+            )
+            self.image.center_distance = drone_distance_to_polygon_center(
+                translated_bbox, (utmx, utmy), corrected_altitude
+            )
             new_translated_bbox = translated_bbox
             if ImageClass.dsm_path:
-                altitudes = [get_altitude_at_point(*box[:2]) for box in new_translated_bbox]
+                altitudes = [
+                    get_altitude_at_point(*box[:2]) for box in new_translated_bbox
+                ]
                 if None in altitudes:
-                    warnings.warn(f"Failed to get elevation for image {image.file_name}. See log for details.")
+                    warnings.warn(
+                        f"Failed to get elevation for image {image.file_name}. See log for details."
+                    )
                     return translate_to_wgs84(new_translated_bbox, longitude, latitude)
 
                 # Calculate the ratios of distances to check the 5 times condition
-                distances = [sqrt((new_translated_bbox[(i + 1) % len(new_translated_bbox)][0] - box[0]) ** 2 +
-                                  (new_translated_bbox[(i + 1) % len(new_translated_bbox)][1] - box[1]) ** 2)
-                             for i, box in enumerate(new_translated_bbox)]
+                distances = [
+                    sqrt(
+                        (
+                            new_translated_bbox[(i + 1) % len(new_translated_bbox)][0]
+                            - box[0]
+                        )
+                        ** 2
+                        + (
+                            new_translated_bbox[(i + 1) % len(new_translated_bbox)][1]
+                            - box[1]
+                        )
+                        ** 2
+                    )
+                    for i, box in enumerate(new_translated_bbox)
+                ]
                 for dist in distances:
-                    if any(other_dist * 6 < dist for other_dist in distances if other_dist != dist):
-                        warnings.warn(f"One side of the polygon for {image.file_name} is at least 5 times longer than another.")
-                        return translate_to_wgs84(new_translated_bbox, longitude, latitude)
+                    if any(
+                        other_dist * 6 < dist
+                        for other_dist in distances
+                        if other_dist != dist
+                    ):
+                        warnings.warn(
+                            f"One side of the polygon for {image.file_name} is at least 5 times longer than another."
+                        )
+                        return translate_to_wgs84(
+                            new_translated_bbox, longitude, latitude
+                        )
 
             if ImageClass.global_elevation is True:
-                trans_utmbox = [utm_to_latlon(box[0], box[1], zone_number, zone_letter) for box in new_translated_bbox]
+                trans_utmbox = [
+                    utm_to_latlon(box[0], box[1], zone_number, zone_letter)
+                    for box in new_translated_bbox
+                ]
                 altitudes = get_altitudes_from_open(trans_utmbox)
 
                 if None in altitudes:
-                    warnings.warn(f"Failed to get elevation at point for {image.file_name}.")
+                    warnings.warn(
+                        f"Failed to get elevation at point for {image.file_name}."
+                    )
                     return translate_to_wgs84(new_translated_bbox, longitude, latitude)
 
                 # Calculate the ratios of distances to check the 5 times condition
-                distances = [sqrt((new_translated_bbox[(i + 1) % len(new_translated_bbox)][0] - box[0]) ** 2 +
-                                  (new_translated_bbox[(i + 1) % len(new_translated_bbox)][1] - box[1]) ** 2)
-                             for i, box in enumerate(new_translated_bbox)]
+                distances = [
+                    sqrt(
+                        (
+                            new_translated_bbox[(i + 1) % len(new_translated_bbox)][0]
+                            - box[0]
+                        )
+                        ** 2
+                        + (
+                            new_translated_bbox[(i + 1) % len(new_translated_bbox)][1]
+                            - box[1]
+                        )
+                        ** 2
+                    )
+                    for i, box in enumerate(new_translated_bbox)
+                ]
                 for dist in distances:
-                    if any(other_dist * 5 < dist for other_dist in distances if other_dist != dist):
+                    if any(
+                        other_dist * 5 < dist
+                        for other_dist in distances
+                        if other_dist != dist
+                    ):
                         warnings.warn(
-                            f"One side of the polygon for {image.file_name} is at least 5 times longer than another.")
-                        return translate_to_wgs84(new_translated_bbox, longitude, latitude)
+                            f"One side of the polygon for {image.file_name} is at least 5 times longer than another."
+                        )
+                        return translate_to_wgs84(
+                            new_translated_bbox, longitude, latitude
+                        )
 
             # If no special conditions are met, process normally
             return translate_to_wgs84(new_translated_bbox, longitude, latitude)
@@ -198,8 +282,11 @@ class FOVCalculator:
             list: A list of Vector objects representing the intersection points on the ground.
         """
 
-        intersections = [FOVCalculator.find_ray_ground_intersection(ray, origin) for ray in rays if
-                         FOVCalculator.find_ray_ground_intersection(ray, origin) is not None]
+        intersections = [
+            FOVCalculator.find_ray_ground_intersection(ray, origin)
+            for ray in rays
+            if FOVCalculator.find_ray_ground_intersection(ray, origin) is not None
+        ]
 
         return intersections
 
@@ -231,7 +318,7 @@ def calculate_centroid(polygon_coords):
     """Calculate the centroid of a polygon given its vertices in UTM coordinates."""
     x_sum = 0
     y_sum = 0
-    for (x, y) in polygon_coords:
+    for x, y in polygon_coords:
         x_sum += x
         y_sum += y
     centroid = (x_sum / len(polygon_coords), y_sum / len(polygon_coords))
@@ -240,7 +327,11 @@ def calculate_centroid(polygon_coords):
 
 def distance_3d(point1, point2):
     """Calculate the 3D distance between two points in UTM coordinates."""
-    return sqrt((point1[0] - point2[0]) ** 2 + (point1[1] - point2[1]) ** 2 + (point1[2] - point2[2]) ** 2)
+    return sqrt(
+        (point1[0] - point2[0]) ** 2
+        + (point1[1] - point2[1]) ** 2
+        + (point1[2] - point2[2]) ** 2
+    )
 
 
 def drone_distance_to_polygon_center(polygon_coords, drone_coords, drone_altitude):
@@ -259,5 +350,5 @@ def drone_distance_to_polygon_center(polygon_coords, drone_coords, drone_altitud
     centroid = calculate_centroid(polygon_coords)
     centroid_3d = (centroid[0], centroid[1], 0)
     drone_position_3d = (drone_coords[0], drone_coords[1], drone_altitude)
-    center_distance=distance_3d(centroid_3d, drone_position_3d)
+    center_distance = distance_3d(centroid_3d, drone_position_3d)
     return center_distance

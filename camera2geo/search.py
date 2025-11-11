@@ -1,11 +1,13 @@
 import lensfunpy
+
 db = lensfunpy.Database()
+
 
 def search_cameras(
     cam_maker: str,
     cam_model: str,
     fuzzy: bool = True,
-    ):
+):
     """
     Look up cameras by maker and model. See https://lensfun.github.io/lenslist/ for a full list.
 
@@ -19,12 +21,13 @@ def search_cameras(
         print(c)
     return cameras
 
+
 def search_lenses(
     camera,
     lens_maker: str,
     lens_model: str,
     fuzzy: bool = True,
-    ):
+):
     """
     Look up lenses compatible with the given camera. See https://lensfun.github.io/lenslist/ for a full list.
 

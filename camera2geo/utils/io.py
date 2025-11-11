@@ -17,8 +17,8 @@ def read_sensor_dimensions_from_csv(
     default_sensor_width=0,
     default_sensor_height=0,
     default_lens_FOVw=0,
-    default_lens_FOVh=0
-    ):
+    default_lens_FOVh=0,
+):
     """
     Reads sensor dimensions from a CSV file, returning a dictionary with sensor models and camera index as keys
     and tuples of sensor dimensions as values. If sensor dimensions are not found, default values are used.
@@ -46,10 +46,19 @@ def read_sensor_dimensions_from_csv(
                 sensor_model = row.get("SensorModel", "default")
 
                 cam_index = row.get("RigCameraIndex", "default")
-                width = float(row.get("SensorWidth", default_sensor_width) or default_sensor_width)
-                height = float(row.get("SensorHeight", default_sensor_height) or default_sensor_height)
-                lens_FOVw = float(row.get("LensFOVw", default_lens_FOVw) or default_lens_FOVw)
-                lens_FOVh = float(row.get("LensFOVh", default_lens_FOVh) or default_lens_FOVh)
+                width = float(
+                    row.get("SensorWidth", default_sensor_width) or default_sensor_width
+                )
+                height = float(
+                    row.get("SensorHeight", default_sensor_height)
+                    or default_sensor_height
+                )
+                lens_FOVw = float(
+                    row.get("LensFOVw", default_lens_FOVw) or default_lens_FOVw
+                )
+                lens_FOVh = float(
+                    row.get("LensFOVh", default_lens_FOVh) or default_lens_FOVh
+                )
 
                 key = (sensor_model, str(cam_index))
                 sensor_dimensions[key] = (
@@ -67,9 +76,15 @@ def read_sensor_dimensions_from_csv(
         # Ensure fallback default entry exists
         if ("default", "default") not in sensor_dimensions:
             sensor_dimensions[("default", "default")] = (
-                "Unknown", "Unknown", "Unknown", "default", "default",
-                default_sensor_width, default_sensor_height,
-                default_lens_FOVw, default_lens_FOVh,
+                "Unknown",
+                "Unknown",
+                "Unknown",
+                "default",
+                "default",
+                default_sensor_width,
+                default_sensor_height,
+                default_lens_FOVw,
+                default_lens_FOVh,
             )
 
     except FileNotFoundError:
@@ -79,7 +94,6 @@ def read_sensor_dimensions_from_csv(
         warnings.warn(f"An unexpected error occurred while reading {csv_filepath}: {e}")
 
     return sensor_dimensions
-
 
 
 def _resolve_paths(

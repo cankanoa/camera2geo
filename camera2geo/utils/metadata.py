@@ -1,7 +1,7 @@
 import warnings
 import magnetismi.magnetismi as api
 
-from dataclasses import dataclass,field
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import ClassVar
 from datetime import datetime
@@ -23,80 +23,115 @@ class ImageClass:
     global_elevation: ClassVar[bool] = False
 
     # Instance vars
-    metadata : dict
-    sensor_dimensions : dict
-    declination : float = None
-    drone_hash : int = None
-    feature_point : dict = field(default_factory=dict)
-    feature_polygon : dict = field(default_factory=dict)
-    properties : dict = field(default_factory=dict)
-    coord_array : list = field(default_factory=list)
-    footprint_coordinates : list = field(default_factory=list)
-    image_path : str = ""
-    output_file : str = ""
-    geotiff_file : str = ""
+    metadata: dict
+    sensor_dimensions: dict
+    declination: float = None
+    drone_hash: int = None
+    feature_point: dict = field(default_factory=dict)
+    feature_polygon: dict = field(default_factory=dict)
+    properties: dict = field(default_factory=dict)
+    coord_array: list = field(default_factory=list)
+    footprint_coordinates: list = field(default_factory=list)
+    image_path: str = ""
+    output_file: str = ""
+    geotiff_file: str = ""
 
     def __post_init__(self):
         self.file_name = str(self.metadata.get("File:FileName"))
 
         # Extract detailed sensor and drone info for the current image
         # Extracting latitude, longitude, and altitude details
-        self.latitude = float(self.metadata.get("Composite:GPSLatitude")
-                                or self.metadata.get("EXIF:GPSLatitude"))
-        self.longitude = float(self.metadata.get("Composite:GPSLongitude")
-                                or self.metadata.get("EXIF:GPSLongitude"))
+        self.latitude = float(
+            self.metadata.get("Composite:GPSLatitude")
+            or self.metadata.get("EXIF:GPSLatitude")
+        )
+        self.longitude = float(
+            self.metadata.get("Composite:GPSLongitude")
+            or self.metadata.get("EXIF:GPSLongitude")
+        )
         self.focal_length = float(self.metadata.get("EXIF:FocalLength"))
         self.focal_length35mm = float(self.metadata.get("EXIF:FocalLengthIn35mmFormat"))
 
-        self.relative_altitude = float(self.metadata.get("XMP:RelativeAltitude")
-                                        or self.metadata.get("Composite:GPSAltitude"))
-        self.absolute_altitude = float(self.metadata.get("XMP:AbsoluteAltitude")
-                                        or self.metadata.get("Composite:GPSAltitude"))
+        self.relative_altitude = float(
+            self.metadata.get("XMP:RelativeAltitude")
+            or self.metadata.get("Composite:GPSAltitude")
+        )
+        self.absolute_altitude = float(
+            self.metadata.get("XMP:AbsoluteAltitude")
+            or self.metadata.get("Composite:GPSAltitude")
+        )
 
         # Extracting gimbal and flight orientation details
-        self.gimbal_roll_degree = _get_float(self.metadata, "XMP:GimbalRollDegree", "MakerNotes:CameraRoll", "XMP:Roll")
-        self.gimbal_pitch_degree = _get_float(self.metadata, "XMP:GimbalPitchDegree", "MakerNotes:CameraPitch",
-                                              "XMP:Pitch")
-        self.gimbal_yaw_degree = _get_float(self.metadata, "XMP:GimbalYawDegree", "MakerNotes:CameraYaw", "XMP:Yaw")
+        self.gimbal_roll_degree = _get_float(
+            self.metadata, "XMP:GimbalRollDegree", "MakerNotes:CameraRoll", "XMP:Roll"
+        )
+        self.gimbal_pitch_degree = _get_float(
+            self.metadata,
+            "XMP:GimbalPitchDegree",
+            "MakerNotes:CameraPitch",
+            "XMP:Pitch",
+        )
+        self.gimbal_yaw_degree = _get_float(
+            self.metadata, "XMP:GimbalYawDegree", "MakerNotes:CameraYaw", "XMP:Yaw"
+        )
 
-        self.flight_pitch_degree = _get_float(self.metadata, "XMP:FlightPitchDegree", "MakerNotes:Pitch", default=999)
-        self.flight_roll_degree = _get_float(self.metadata, "XMP:FlightRollDegree", "MakerNotes:Roll", default=999)
-        self.flight_yaw_degree = _get_float(self.metadata, "XMP:FlightYawDegree", "MakerNotes:Yaw", default=999)
+        self.flight_pitch_degree = _get_float(
+            self.metadata, "XMP:FlightPitchDegree", "MakerNotes:Pitch", default=999
+        )
+        self.flight_roll_degree = _get_float(
+            self.metadata, "XMP:FlightRollDegree", "MakerNotes:Roll", default=999
+        )
+        self.flight_yaw_degree = _get_float(
+            self.metadata, "XMP:FlightYawDegree", "MakerNotes:Yaw", default=999
+        )
 
         # Extracting image and sensor details
-        self.image_width = int(self.metadata.get("EXIF:ImageWidth")
-                               or self.metadata.get("EXIF:ExifImageWidth")) # pixels
-        self.image_height = int(self.metadata.get("EXIF:ImageHeight")
-                                or self.metadata.get("EXIF:ExifImageHeight")) # pixels
+        self.image_width = int(
+            self.metadata.get("EXIF:ImageWidth")
+            or self.metadata.get("EXIF:ExifImageWidth")
+        )  # pixels
+        self.image_height = int(
+            self.metadata.get("EXIF:ImageHeight")
+            or self.metadata.get("EXIF:ExifImageHeight")
+        )  # pixels
         self.max_aperture_value = self.metadata.get("EXIF:MaxApertureValue")
         # date/time of original image capture
         self.datetime_original = self.metadata.get("EXIF:DateTimeOriginal")
         # Get sensor model and rig camera index from metadata
         self.sensor_model_data = self.metadata.get("EXIF:Model")
-        self.sensor_index = str(self.metadata.get("XMP:RigCameraIndex")
-                                or self.metadata.get('XMP:SensorIndex'))
+        self.sensor_index = str(
+            self.metadata.get("XMP:RigCameraIndex")
+            or self.metadata.get("XMP:SensorIndex")
+        )
         self.sensor_make = ""
 
-
-        if self.sensor_model_data :
+        if self.sensor_model_data:
             # Prioritize direct match with sensor model and rig camera index
             key = (self.sensor_model_data, self.sensor_index)
             self.sensor_info = self.sensor_dimensions.get((key))
-            #from IPython import embed; embed()
+            # from IPython import embed; embed()
             # If no direct match, try just with sensor model (for cases without multiple entries)
-            if self.sensor_info is None :
+            if self.sensor_info is None:
                 self.sensor_info = next(
-                    (value for (model, idx), value in self.sensor_dimensions.items() if model == self.sensor_model_data), None)
+                    (
+                        value
+                        for (model, idx), value in self.sensor_dimensions.items()
+                        if model == self.sensor_model_data
+                    ),
+                    None,
+                )
         else:
             # Use default when sensor_model_data is 'default'
-            self.sensor_info = self.sensor_dimensions.get(("default", 'nan'))
+            self.sensor_info = self.sensor_dimensions.get(("default", "nan"))
 
         # Ensure we have valid sensor_info; otherwise, log error or take necessary action
         if not self.sensor_info:
-#            logger.error(
+            #            logger.error(
 
-            print(f"No sensor information found for {self.file_name} with sensor model {self.sensor_model_data} and rig camera index {self.sensor_index}. Using defaults.")
-            self.sensor_info = self.sensor_dimensions.get(("default", 'nan'))
+            print(
+                f"No sensor information found for {self.file_name} with sensor model {self.sensor_model_data} and rig camera index {self.sensor_index}. Using defaults."
+            )
+            self.sensor_info = self.sensor_dimensions.get(("default", "nan"))
 
         self.drone_make = self.sensor_info[0]
         self.drone_model = self.sensor_info[1]
@@ -106,7 +141,7 @@ class ImageClass:
         self.sensor_width = self.sensor_info[5]
         self.sensor_height = self.sensor_info[6]
         self.lens_FOV_width = self.sensor_info[7]
-        self.lens_FOV_height = self.sensor_info [8]
+        self.lens_FOV_height = self.sensor_info[8]
 
         # Special case
         if self.sensor_model in ["FC2103", "FC220", "FC300X", "FC200"]:
@@ -116,32 +151,38 @@ class ImageClass:
             self.drone_model = ""
             self.drone_make = "Unknown Drone"
 
-        self.gsd = (self.sensor_width * self.relative_altitude) / (self.focal_length * self.image_width)
+        self.gsd = (self.sensor_width * self.relative_altitude) / (
+            self.focal_length * self.image_width
+        )
         self.create_properties()
         self.create_hash()
 
-
-
-#def find_declination(altitude, focal_length, drone_latitude, drone_longitude, datetime_original):
+    # def find_declination(altitude, focal_length, drone_latitude, drone_longitude, datetime_original):
     def find_declination(self):
-        str_date = datetime.strptime(self.datetime_original, '%Y:%m:%d %H:%M:%S')
+        str_date = datetime.strptime(self.datetime_original, "%Y:%m:%d %H:%M:%S")
 
         if str(str_date.year) > str(2019):
             mag_date = api.dti.date(str_date.year, str_date.month, str_date.day)
             # Find the magnetic declination reference
             model = api.Model(mag_date.year)
-            field_point = model.at(lat_dd=self.latitude, lon_dd=self.longitude, alt_ft=self.relative_altitude, date=mag_date)
+            field_point = model.at(
+                lat_dd=self.latitude,
+                lon_dd=self.longitude,
+                alt_ft=self.relative_altitude,
+                date=mag_date,
+            )
             declination = field_point.dec
         else:
             calculator = MagneticFieldCalculator()
-            model = calculator.calculate(latitude=self.latitude, longitude=self.longitude)
-            dec = model['field-value']['declination']
-            declination = dec['value']
+            model = calculator.calculate(
+                latitude=self.latitude, longitude=self.longitude
+            )
+            dec = model["field-value"]["declination"]
+            declination = dec["value"]
 
         if self.relative_altitude < 0 or self.focal_length <= 0:
             warnings.warn("Altitude and focal length must be positive.")
-        self.declination=declination
-
+        self.declination = declination
 
     def create_geojson_feature(self, properties):
         """
@@ -158,26 +199,23 @@ class ImageClass:
         # GeoJSON polygon
         type_polygon = {
             "type": "Polygon",
-            "coordinates": mapping(polygon)["coordinates"]
+            "coordinates": mapping(polygon)["coordinates"],
         }
 
         # GeoJSON point
-        type_point = {
-            "type": "Point",
-            "coordinates": [self.longitude, self.latitude]
-        }
+        type_point = {"type": "Point", "coordinates": [self.longitude, self.latitude]}
 
         # Store as feature dicts
         self.feature_point = {
             "type": "Feature",
             "geometry": type_point,
-            "properties": properties
+            "properties": properties,
         }
 
         self.feature_polygon = {
             "type": "Feature",
             "geometry": type_polygon,
-            "properties": properties
+            "properties": properties,
         }
 
     def create_properties(self):
@@ -207,15 +245,28 @@ class ImageClass:
             MaxApertureValue=self.max_aperture_value,
             lens_FOV1h=self.lens_FOV_height,
             lens_FOVw1=self.lens_FOV_width,
-            GSD=self.gsd)
+            GSD=self.gsd,
+        )
         if self.gimbal_pitch_degree == 999:
-            self.properties['FlightYawDegree']=self.gimbal_yaw_degree
-            self.properties['FlightPitchDegree']=self.gimbal_pitch_degree
-            self.properties['FlightRollDegree']=self.gimbal_roll_degree
+            self.properties["FlightYawDegree"] = self.gimbal_yaw_degree
+            self.properties["FlightPitchDegree"] = self.gimbal_pitch_degree
+            self.properties["FlightRollDegree"] = self.gimbal_roll_degree
 
     def create_hash(self) -> bool:
-        self.drone_hash = hash((self.drone_make, self.drone_model ,self.camera_make, self.sensor_model, \
-                self.sensor_width, self.sensor_height, self.lens_FOV_width, self.lens_FOV_height, self.focal_length, self.max_aperture_value))
+        self.drone_hash = hash(
+            (
+                self.drone_make,
+                self.drone_model,
+                self.camera_make,
+                self.sensor_model,
+                self.sensor_width,
+                self.sensor_height,
+                self.lens_FOV_width,
+                self.lens_FOV_height,
+                self.focal_length,
+                self.max_aperture_value,
+            )
+        )
 
 
 def _get_float(md, *keys, default=0.0):

@@ -9,6 +9,7 @@ from .utils.metadata import ImageClass
 from .utils.fov import FOVCalculator
 from .utils.raster_utils import generate_geotiff
 
+
 def camera2geo(
     input_images: str | List[str],
     output_images: str | List[str],
@@ -48,7 +49,10 @@ def camera2geo(
     output_image_paths = _resolve_paths(
         "create",
         output_images,
-        kwargs={"paths_or_bases": input_image_paths, "default_file_pattern": "$_Geo.tif"},
+        kwargs={
+            "paths_or_bases": input_image_paths,
+            "default_file_pattern": "$_Geo.tif",
+        },
     )
 
     # Elevation
@@ -65,7 +69,9 @@ def camera2geo(
         dsm_path = elevation_data
 
     else:
-        raise ValueError("elevation_data must be False, True, or a filesystem path string.")
+        raise ValueError(
+            "elevation_data must be False, True, or a filesystem path string."
+        )
 
     # Setup class attributes
     ImageClass.epsg = epsg
@@ -91,7 +97,9 @@ def camera2geo(
     produced_paths = []
 
     # Set per image
-    for exif, in_path, out_path in zip(exif_array, input_image_paths, output_image_paths):
+    for exif, in_path, out_path in zip(
+        exif_array, input_image_paths, output_image_paths
+    ):
 
         # Create per-image object
         image = ImageClass(

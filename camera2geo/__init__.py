@@ -7,15 +7,16 @@ __all__ = [
     "camera2geo",
     "search_cameras",
     "search_lenses",
-    'apply_metadata',
-    'read_metadata',
-    ]
+    "apply_metadata",
+    "read_metadata",
+]
 
 # Name
 name = "camera2geo"
 
 # Import version from pyproject.toml
 from importlib.metadata import version, PackageNotFoundError
+
 try:
     __version__ = version("camera2geo")
 except PackageNotFoundError:
