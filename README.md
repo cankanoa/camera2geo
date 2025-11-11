@@ -1,38 +1,10 @@
 # Camera2Geo: camera to geographic space image convertion
 
-> This plugin is under active development therefor not all features outlined in this readme are complete and the library is subject to major changes.
+[![codecov](https://codecov.io/gh/cankanoa/camera2geo/graph/badge.svg?token=BZQBKDKQVI)](https://codecov.io/gh/cankanoa/camera2geo)
 
-Camera2Geo converts raw drone or camera images into georeferenced GeoTIFFs via image metadata and a camera model. This can be helpful to quickly view individual aerial images in GIS software, label image features in geographic space, and view images in full resolution rather than in orthomosaic resolution. The core functionality is built from [Drone-Footprints](https://github.com/spifftek70/Drone-Footprints) but extended with additional features and an improved interface via a Python library, QGIS plugin, and CLI.
+Camera2Geo converts raw drone or camera images into georeferenced GeoTIFFs via image metadata and a camera model. This can be helpful to quickly view individual aerial images in GIS software, label image features in geographic space, and view images in full resolution rather than in orthomosaic resolution. Most common drone sensors automatically work but custom implementations are possible. The core functionality is built from [Drone-Footprints](https://github.com/spifftek70/Drone-Footprints) but extended with additional features and an improved interface via a Python library, QGIS plugin, and CLI.
 
-## Functionality
-
-### camera2geo()
-1. **Resolve Input Paths:** Uses a glob pattern to search for one or many images.
-
-2. **Read EXIF Metadata:** Uses exiftool to extract GPS location, orientation, camera intrinsics, timestamp, and flight parameters.
-
-3. **Determine Sensor Geometry:** Includes camera presets for many popular drones that are automatically applied but the user can provide custom values.
-
-4. **Elevation & Camera Pose Refinement (optional):**
-   - Use provided elevation raster or query for an online elevation API raster to sample ground position.
-   - If RTK sidecar files are detected, refine camera altitude/orientation.
-5. **Image Correction & Enhancement (optional)**
-   - Lens distortion correction
-   - Radiometric equalization
-6. **Geographic Coordinate Convertion:** Computes ground footprint and projection based on camera model, orientation, and elevation, then reprojects into the target EPSG.
-7. **Output GeoTIFF Creation:** Writes georeferenced TIFFs to the output directory; optionally writes as COG.
-
-### read_metadata()
- Read metadata from one or more images and print the results as YAML and return values. Each parameter includes all metadata source fields that contribute to its value (primary + fallback).
-
-### apply_metadata()
-Apply or remove metadata on one or more images. If `output_images` is not provided, edits are applied in-place; otherwise, input files are copied first.
-
-### search_cameras()
-Look up cameras by maker and model.
-
-### search_lenses()
-Look up lenses compatible with the given camera.
+> Please cite as:
 
 ## Usage
 ### QGIS
@@ -69,17 +41,57 @@ camera2geo \
   --elevation_data
   ```
 
+## Functionality
+
+### camera2geo()
+1. **Resolve Input Paths:** Uses a glob pattern to search for one or many images.
+
+2. **Read EXIF Metadata:** Uses exiftool to extract GPS location, orientation, camera intrinsics, timestamp, and flight parameters.
+
+3. **Determine Sensor Geometry:** Includes camera presets for many popular drones that are automatically applied but the user can provide custom values.
+
+4. **Elevation & Camera Pose Refinement (optional):**
+   - Use provided elevation raster or query for an online elevation API raster to sample ground position.
+   - If RTK sidecar files are detected, refine camera altitude/orientation.
+5. **Image Correction & Enhancement (optional)**
+   - Lens distortion correction
+   - Radiometric equalization
+6. **Geographic Coordinate Convertion:** Computes ground footprint and projection based on camera model, orientation, and elevation, then reprojects into the target EPSG.
+7. **Output GeoTIFF Creation:** Writes georeferenced TIFFs to the output directory; optionally writes as COG.
+
+### read_metadata()
+ Read metadata from one or more images and print the results as YAML and return values. Each parameter includes all metadata source fields that contribute to its value (primary + fallback).
+
+### apply_metadata()
+Apply or remove metadata on one or more images. If `output_images` is not provided, edits are applied in-place; otherwise, input files are copied first.
+
+### search_cameras()
+Look up cameras by maker and model.
+
+### search_lenses()
+Look up lenses compatible with the given camera.
+
 ## Installation
 
 ### QGIS Plugin Installation
 1. **Install QGIS**
 
-2. **Install camera2geo QGIS plugin:**
+2. **System requirements:** Before installing, ensure you have the following system-level prerequisites:
+
+- exiftool
+- Python ≥ 3.10 and ≤ 3.12
+- PROJ ≥ 9.3
+- GDAL ≥ 3.10.2
+
+> **Manual installation required:** The only system requirement that is not already installed with QGIS is exiftool which will need to be manually installed. An easy way to install exiftool, along with a containerized version of QGIS, is wtih conda: `conda create -n qgis_env python=3.12 "gdal>=3.10.2" "proj>=9.3" exiftool qgis -c conda-forge`, `conda activate qgis_env`, then `qgis` to start the program. Alternatively, exiftool can be installed [here](https://exiftool.org/).
+
+> **Python dependencies:** The plugin will attempt to automatically install all Python dependencies that it requires in the QGIS Python interpreter using [QPIP](https://github.com/opengisch/qpip). If it is unable to, the user must manually locate the QGIS python interpreter and install the libraries dependencies.
+
+3. **Install camera2geo QGIS plugin:**
 - Go to Plugins → Manage and Install Plugins…
 - Find camera2geo in the list, install, and enable it
 - Find the plugin in the toolbar to convert individual geophoto points temporarily or in the Processing Toolbox for bulk processing
 
-> **Python dependencies:** The plugin will attempt to automatically install all Python dependencies that it requires in the QGIS Python interpreter using [QPIP](https://github.com/opengisch/qpip). If it is unable to, the user must manually locate the QGIS python interpreter and install the libraries dependencies.
 
 ### Python Library and CLI Installation
 
