@@ -24,13 +24,14 @@
 from qgis.PyQt.QtWidgets import QAction, QToolButton, QMenu
 from qgis.gui import QgsMapToolIdentifyFeature, QgsMapToolIdentify
 from qgis.PyQt.QtCore import Qt, QSettings, QTranslator, QCoreApplication, QVariant
-from qgis.core import QgsRasterLayer, QgsProject, QgsMessageLog, Qgis
-
+from qgis.core import QgsRasterLayer, QgsProject, QgsMessageLog, Qgis, QgsApplication
+from qgis import processing
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, QTemporaryDir
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
 
 from .camera2geo.main import camera2geo as camera2geo_function
+from .provider import Camera2GeoProvider
 
 # Initialize Qt resources from file resources.py
 from .resources import *
@@ -104,6 +105,7 @@ class Camera2GeoPlugin:
         """
         # Save reference to the QGIS interface
         self.iface = iface
+        self.provider = None
         # initialize plugin directory
         self.plugin_dir = os.path.dirname(__file__)
         # initialize locale
@@ -232,12 +234,34 @@ class Camera2GeoPlugin:
         self.actRun.triggered.connect(self.activate_tool)
 
         # Settings action (opens your existing dialog)
-        self.actSettings = QAction(self.tr('Settings…'), self.iface.mainWindow())
+        self.actSettings = QAction(self.tr('Picker Settings…'), self.iface.mainWindow())
         self.actSettings.triggered.connect(self.open_settings_dialog)
 
         # Dropdown menu
         menu = QMenu(self.iface.mainWindow())
+
+        # Settings
         menu.addAction(self.actSettings)
+
+        # Divider
+        menu.addSeparator()
+
+        # Add Bulk Tools
+        self.actProcessCamera2Geo = QAction("Camera 2 Geo", self.iface.mainWindow())
+        self.actProcessCamera2Geo.triggered.connect(lambda: self.open_processing_tool("camera2geo:camera2geo"))
+        menu.addAction(self.actProcessCamera2Geo)
+
+        self.actProcessSearch = QAction("Search Camera and Lens", self.iface.mainWindow())
+        self.actProcessSearch.triggered.connect(lambda: self.open_processing_tool("camera2geo:camera_lens_search"))
+        menu.addAction(self.actProcessSearch)
+
+        self.actProcessApplyMetadata = QAction("Apply Metadata", self.iface.mainWindow())
+        self.actProcessApplyMetadata.triggered.connect(lambda: self.open_processing_tool("camera2geo:apply_metadata"))
+        menu.addAction(self.actProcessApplyMetadata)
+
+        self.actProcessReadMetadata = QAction("Read Metadata", self.iface.mainWindow())
+        self.actProcessReadMetadata.triggered.connect(lambda: self.open_processing_tool("camera2geo:read_metadata"))
+        menu.addAction(self.actProcessReadMetadata)
 
         # Save to folder name
         # one or mulitple at the same time
@@ -255,6 +279,17 @@ class Camera2GeoPlugin:
 
         self.iface.mapCanvas().mapToolSet.connect(self._on_map_tool_changed)
         self.first_start = True
+
+        # Register Processing Provider
+        self.provider = Camera2GeoProvider()
+        QgsApplication.processingRegistry().addProvider(self.provider)
+
+    def open_processing_tool(self, alg_id):
+        alg = QgsApplication.processingRegistry().algorithmById(alg_id)
+        if alg:
+            processing.execAlgorithmDialog(alg)
+        else:
+            self.iface.messageBar().pushWarning("Camera2Geo", f"Processing tool not found: {alg_id}")
 
     def activate_tool(self):
         def on_hit(attrs, feat, layer):
@@ -346,6 +381,8 @@ class Camera2GeoPlugin:
         if self.toolbar:
             self.iface.mainWindow().removeToolBar(self.toolbar)
             self.toolbar = None
+        if self.provider:
+            QgsApplication.processingRegistry().removeProvider(self.provider)
 
     def run(self):
         """Run method that performs all the real work"""
