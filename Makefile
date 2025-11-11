@@ -25,9 +25,6 @@ qgis-build:
 	cp LICENSE qgis_camera2geo/LICENSE
 	PYTHONPATH=. python qgis_camera2geo/build_plugin.py
 
-	# Remove tests entirely (this is the real fix)
-	rm -rf qgis_camera2geo/test qgis_camera2geo/camera2geo/test
-
 	# Remove caches
 	find qgis_camera2geo -name "__pycache__" -type d -exec rm -rf {} +
 	find qgis_camera2geo -name "*.pyc" -delete

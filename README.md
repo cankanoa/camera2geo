@@ -9,7 +9,7 @@
 
 Camera2Geo converts raw drone or camera images into georeferenced GeoTIFFs via image metadata and a camera model. This can be helpful to quickly view individual aerial images in GIS software, label image features in geographic space, and view images in full resolution rather than in orthomosaic resolution. Most common drone sensors automatically work but custom implementations are possible. The core functionality is built from [Drone-Footprints](https://github.com/spifftek70/Drone-Footprints) but extended with additional features and an improved interface via a Python library, QGIS plugin, and CLI.
 
-> Please cite as: Lindiwe, K., Percival, J. E. H., & Perroy, R. (2025). Camera2Geo (v1.0.0). Zenodo. https://doi.org/10.5281/zenodo.17578622
+> Please cite as: Lindiwe, K., Percival, J. E. H., & Perroy, R. (2025). Camera2Geo. Zenodo. https://doi.org/10.5281/zenodo.17578622
 
 ## Usage
 ### QGIS
