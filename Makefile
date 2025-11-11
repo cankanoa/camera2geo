@@ -1,4 +1,5 @@
 MAKEFILE_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+PYTHON_LIB := $(MAKEFILE_DIR)camera2geo/
 
 # Cleanup
 clean:
@@ -10,7 +11,7 @@ clean:
 		   $(MAKEFILE_DIR)qgis_camera2geo.zip \
 		   $(MAKEFILE_DIR)qgis_camera2geo/requirements.txt
 
-# Python
+# Python build
 python-build:
 	@echo "Building Python wheel..."
 	python -m build --wheel
@@ -34,3 +35,33 @@ qgis-build:
 qgis-deploy:
 	python spectralmatch_qgis/plugin_upload.py spectralmatch_qgis.zip \
 		--username your_username --password your_password
+
+# Versioning
+version:
+	@if [ -z "$(version)" ]; then \
+		echo "Usage: make version version=1.2.3"; \
+		exit 1; \
+	fi
+	@echo "Updating versions to $(version)..."
+	sed -i.bak "s/^version = .*/version = \"$(version)\"/" pyproject.toml && rm pyproject.toml.bak
+	sed -i.bak "s/^version=.*/version=$(version)/" spectralmatch_qgis/metadata.txt && rm spectralmatch_qgis/metadata.txt.bak
+	git add pyproject.toml spectralmatch_qgis/metadata.txt
+	git commit -m "Version $(version) released"
+	git push origin HEAD
+	$(MAKE) tag version=$(version)
+
+tag:
+	@if [ -z "$(version)" ]; then \
+		echo "Usage: make tag version=1.2.3"; \
+		exit 1; \
+	fi
+	git tag -a v$(version) -m "Version $(version)"
+	git push origin v$(version)
+
+
+# Code formatting
+format:
+	black $(PYTHON_LIB).
+
+check-format:
+	black --check $(PYTHON_LIB).
