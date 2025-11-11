@@ -54,24 +54,14 @@ class ImageClass:
                                         or self.metadata.get("Composite:GPSAltitude"))
 
         # Extracting gimbal and flight orientation details
-        self.gimbal_roll_degree = float(
-            self.metadata.get("XMP:GimbalRollDegree") or
-            self.metadata.get("MakerNotes:CameraRoll") or self.metadata.get("XMP:Roll"))
-        self.gimbal_pitch_degree = float(
-            self.metadata.get("XMP:GimbalPitchDegree") or
-            self.metadata.get("MakerNotes:CameraPitch") or self.metadata.get("XMP:Pitch"))
-        self.gimbal_yaw_degree = float(
-            self.metadata.get("XMP:GimbalYawDegree") or
-            self.metadata.get("MakerNotes:CameraYaw") or self.metadata.get("XMP:Yaw"))
-        self.flight_pitch_degree = float(self.metadata.get("XMP:FlightPitchDegree")
-                                         or self.metadata.get("MakerNotes:Pitch")or 999)
-        self.flight_roll_degree = float(self.metadata.get("XMP:FlightRollDegree")
-                                        or self.metadata.get("MakerNotes:Roll")or 999)
-        self.flight_yaw_degree = float(self.metadata.get("XMP:FlightYawDegree")
-                                       or self.metadata.get("MakerNotes:Yaw")or 999)
-        if self.flight_pitch_degree is None : self.flight_pitch_degree = self.gimbal_pitch_degree
-        if self.flight_roll_degree is None : self.flight_roll_degree = self.gimbal_roll_degree
-        if self.flight_yaw_degree is None : self.flight_yaw_degree = self.gimbal_yaw_degree
+        self.gimbal_roll_degree = _get_float(self.metadata, "XMP:GimbalRollDegree", "MakerNotes:CameraRoll", "XMP:Roll")
+        self.gimbal_pitch_degree = _get_float(self.metadata, "XMP:GimbalPitchDegree", "MakerNotes:CameraPitch",
+                                              "XMP:Pitch")
+        self.gimbal_yaw_degree = _get_float(self.metadata, "XMP:GimbalYawDegree", "MakerNotes:CameraYaw", "XMP:Yaw")
+
+        self.flight_pitch_degree = _get_float(self.metadata, "XMP:FlightPitchDegree", "MakerNotes:Pitch", default=999)
+        self.flight_roll_degree = _get_float(self.metadata, "XMP:FlightRollDegree", "MakerNotes:Roll", default=999)
+        self.flight_yaw_degree = _get_float(self.metadata, "XMP:FlightYawDegree", "MakerNotes:Yaw", default=999)
 
         # Extracting image and sensor details
         self.image_width = int(self.metadata.get("EXIF:ImageWidth")
@@ -226,3 +216,14 @@ class ImageClass:
     def create_hash(self) -> bool:
         self.drone_hash = hash((self.drone_make, self.drone_model ,self.camera_make, self.sensor_model, \
                 self.sensor_width, self.sensor_height, self.lens_FOV_width, self.lens_FOV_height, self.focal_length, self.max_aperture_value))
+
+
+def _get_float(md, *keys, default=0.0):
+    for k in keys:
+        v = md.get(k)
+        if v not in (None, "", " ", "null", "NULL"):
+            try:
+                return float(v)
+            except:
+                pass
+    return float(default)
