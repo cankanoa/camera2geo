@@ -38,6 +38,7 @@ qgis-build:
 	rm -rf qgis_camera2geo/camera2geo/
 	rm qgis_camera2geo/icon_low.png
 	rm qgis_camera2geo/requirements.txt
+	rm qgis_camera2geo/LICENSE
 	@echo "Done"
 
 qgis-deploy:

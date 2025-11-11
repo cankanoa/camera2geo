@@ -1,6 +1,10 @@
 # Camera2Geo: camera to geographic space image convertion
 
+[![PyPI version](https://img.shields.io/pypi/v/camera2geo.svg)](https://pypi.org/project/camera2geo/)
+[![QGIS Plugin](https://img.shields.io/badge/QGIS-Plugin-589632?logo=qgis)](https://plugins.qgis.org/plugins/qgis_camera2geo/)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![codecov](https://codecov.io/gh/cankanoa/camera2geo/graph/badge.svg?token=BZQBKDKQVI)](https://codecov.io/gh/cankanoa/camera2geo)
+
 
 Camera2Geo converts raw drone or camera images into georeferenced GeoTIFFs via image metadata and a camera model. This can be helpful to quickly view individual aerial images in GIS software, label image features in geographic space, and view images in full resolution rather than in orthomosaic resolution. Most common drone sensors automatically work but custom implementations are possible. The core functionality is built from [Drone-Footprints](https://github.com/spifftek70/Drone-Footprints) but extended with additional features and an improved interface via a Python library, QGIS plugin, and CLI.
 
