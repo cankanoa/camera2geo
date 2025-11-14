@@ -139,7 +139,7 @@ cd camera2geo
 
 An easy way to install these dependancies is to use [Miniconda](https://www.anaconda.com/docs/getting-started/miniconda/install#quickstart-install-instructions):
 ```bash
-conda create -n camera2geo python=3.12 "gdal>=3.10.2" "proj>=9.3" exiftool ````-c conda-forge
+conda create -n camera2geo python=3.12 "gdal>=3.10.2" "proj>=9.3" exiftool -c conda-forge
 conda activate camera2geo
 ```
 

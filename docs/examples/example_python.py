@@ -27,7 +27,25 @@ read_metadata(
 apply_metadata(
     input_images=f"{working_directory}/data_mavic2pro/input/DJI_0812.*",
     metadata={
-        "EXIF:FocalLength": 10.26, # Correct value: 10.26
+        # "Composite:GPSLatitude":None,
+        # "Composite:GPSLongitude":None,
+        "EXIF:FocalLength":10.26, # Correct value: 10.26
+        # "EXIF:FocalLengthIn35mmFormat":None,
+        # "XMP:RelativeAltitude":None,
+        # "XMP:AbsoluteAltitude":None,
+        # "XMP:GimbalRollDegree":None,
+        # "XMP:GimbalPitchDegree":None,
+        # "XMP:GimbalYawDegree":None,
+        # "XMP:FlightPitchDegree":None,
+        # "XMP:FlightRollDegree":None,
+        # "XMP:FlightYawDegree":None,
+        # "EXIF:ImageWidth":None,
+        # "EXIF:ImageHeight":None,
+        # "EXIF:MaxApertureValue":None,
+        # "EXIF:DateTimeOriginal":None,
+        # "EXIF:Model":None,
+        # "XMP:RigCameraIndex":None,
+        # "sensor_make":None,
     }
 )
 
