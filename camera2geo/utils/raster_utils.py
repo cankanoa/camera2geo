@@ -164,58 +164,30 @@ def array2ds(cv2_array, polygon_wkt):
         height, width = cv2_array.shape
         bands = 1
 
-    # Determine rasterio data type based on cv2_array data type
-    if cv2_array.dtype == np.uint8:
-        dtype = rasterio.uint8
-    elif cv2_array.dtype == np.uint16:
-        dtype = rasterio.uint16
-    elif cv2_array.dtype == np.int32:
-        dtype = rasterio.int32
-    elif cv2_array.dtype == np.float32:
-        dtype = rasterio.float32
-    elif cv2_array.dtype == np.float64:
-        dtype = rasterio.float64
-    else:
-        warnings.warn(f"Unsupported data type: {str(cv2_array.dtype)}")
-
-    # Create and configure the rasterio dataset
     transform = from_bounds(minx, miny, maxx, maxy, width, height)
     crs = rasterio.crs.CRS.from_epsg(ImageClass.epsg)
 
-    with rasterio.MemoryFile() as memfile:
-        with memfile.open(
-            driver="GTiff",
-            height=height,
-            width=width,
-            count=bands,
-            dtype=dtype,
-            crs=crs,
-            transform=transform,
-        ) as dst:
-            if len(cv2_array.shape) == 3:  # For color images
-                for i in range(1, bands + 1):
-                    dst.write(cv2_array[:, :, i - 1], i)
-                    # Set color interpretation for each band if applicable
-                    if bands == 3:
-                        color_interpretations = [
-                            ColorInterp.red,
-                            ColorInterp.green,
-                            ColorInterp.blue,
-                        ]
-                        dst.colorinterp = color_interpretations[:bands]
-                    elif bands == 4:
-                        color_interpretations = [
-                            ColorInterp.red,
-                            ColorInterp.green,
-                            ColorInterp.blue,
-                            ColorInterp.alpha,
-                        ]
-                        dst.colorinterp = color_interpretations[:bands]
-            else:  # For grayscale images
-                dst.write(cv2_array, 1)
-                color_interpretations = [ColorInterp.gray]
-                dst.colorinterp = color_interpretations[:bands]
-        return memfile.open()
+    memfile = rasterio.MemoryFile()
+    dataset = memfile.open(
+        driver="GTiff",
+        height=height,
+        width=width,
+        count=bands,
+        dtype=cv2_array.dtype,
+        crs=crs,
+        transform=transform,
+    )
+
+    if bands == 1:
+        dataset.write(cv2_array, 1)
+        dataset.colorinterp = (ColorInterp.gray,)
+    else:
+        for i in range(bands):
+            dataset.write(cv2_array[:, :, i], i + 1)
+        if bands == 3:
+            dataset.colorinterp = (ColorInterp.red, ColorInterp.green, ColorInterp.blue)
+
+    return dataset
 
 
 @contextmanager

@@ -132,14 +132,16 @@ class FOVCalculator:
             declination,
         )
 
-        # Create rotation
-        r = R.from_euler("ZYX", [float(adj_yaw), float(adj_pitch), float(adj_roll)])
+        # Match the old quaternion from_euler_angles convention (Z–Y–Z style)
+        r = R.from_euler(
+            "ZYZ",
+            [float(adj_yaw), float(adj_pitch), float(adj_roll)],
+            degrees=False,
+        )
 
-        # Rotate each ray vector
         rotated = r.apply([(float(ray.x), float(ray.y), float(ray.z)) for ray in rays])
-
-        # Convert back to Vector objects
         return [Vector(*vec) for vec in rotated]
+
 
     def get_fov_bbox(self, image: ImageClass):
         try:
