@@ -19,6 +19,8 @@ In QGIS, images can be converted from geotagged photo points and automatically a
 ### Python 
 In python, there is a simple function to process many images at once using glob input/output. An example is available in [example_python.py](docs/examples/example_python.py)
 ```python
+from camera2geo import *
+
 camera2geo(
     input_images="/input/folder/*.JPG",
     output_images= "/output/folder/$.TIF",
@@ -83,7 +85,7 @@ Look up lenses compatible with the given camera.
 
 2. **System requirements:** Before installing, ensure you have the following system-level prerequisites:
 
-- exiftool
+- exiftool.exe
 - Python ≥ 3.10 and ≤ 3.12
 - PROJ ≥ 9.3
 - GDAL ≥ 3.10.2
@@ -102,7 +104,7 @@ Look up lenses compatible with the given camera.
 
 1. **System requirements:** Before installing, ensure you have the following system-level prerequisites:
 
-- exiftool
+- exiftool.exe
 - Python ≥ 3.10 and ≤ 3.12
 - PROJ ≥ 9.3
 - GDAL ≥ 3.10.2
@@ -110,7 +112,7 @@ Look up lenses compatible with the given camera.
 
 An easy way to install these dependancies is to use [Miniconda](https://www.anaconda.com/docs/getting-started/miniconda/install#quickstart-install-instructions):
 ```bash
-conda create -n camera2geo python=3.12 "gdal>=3.10.2" "proj>=9.3" exiftool -c conda-forge
+conda create -n camera2geo python=3.12 "gdal>=3.10.2" "proj>=9.3" -c conda-forge
 conda activate camera2geo
 ```
 
@@ -132,14 +134,14 @@ cd camera2geo
 
 2. **System requirements:** Before installing, ensure you have the following system-level prerequisites:
 
-- exiftool
+- exiftool.exe
 - Python ≥ 3.10 and ≤ 3.12
 - PROJ ≥ 9.3
 - GDAL = 3.10.2
 
 An easy way to install these dependancies is to use [Miniconda](https://www.anaconda.com/docs/getting-started/miniconda/install#quickstart-install-instructions):
 ```bash
-conda create -n camera2geo python=3.12 "gdal>=3.10.2" "proj>=9.3" exiftool -c conda-forge
+conda create -n camera2geo python=3.12 "gdal>=3.10.2" "proj>=9.3" -c conda-forge
 conda activate camera2geo
 ```
 
