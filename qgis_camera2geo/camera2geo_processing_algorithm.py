@@ -218,15 +218,46 @@ class ApplyMetadataAlgorithm(QgsProcessingAlgorithm):
     OUTPUT = "OUTPUT"
 
     def initAlgorithm(self, config=None):
-        self.addParameter(QgsProcessingParameterFile(self.INPUT, "Input Images (path or glob)", behavior=QgsProcessingParameterFile.File))
-        self.addParameter(QgsProcessingParameterString(self.METADATA, "Python Dictionary of Key:Value pairs"))
-        self.addParameter(QgsProcessingParameterFile(self.OUTPUT, "Output Images (path or glob) or Blank to Update Images", behavior=QgsProcessingParameterFile.File, optional=True))
+        self.addParameter(QgsProcessingParameterFile(
+            self.INPUT,
+            "Input Images (path or glob)",
+            behavior=QgsProcessingParameterFile.File
+        ))
+
+        self.addParameter(QgsProcessingParameterString(
+            self.METADATA,
+            "EXIF data to add: Python Dict: EXIF_Tag:EXIF_Value (e.g. {'Composite:GPSLatitude':19.95882446})",
+            optional=True
+        ))
+
+        self.addParameter(QgsProcessingParameterFile(
+            self.OUTPUT,
+            "Output Images (path or glob) or Blank to Update Images",
+            behavior=QgsProcessingParameterFile.File,
+            optional=True
+        ))
+
+        self.addParameter(QgsProcessingParameterFile(
+            "CSV_METADATA_PATH",
+            "EXIF data to add via CSV: CSV Path",
+            behavior=QgsProcessingParameterFile.File,
+            optional=True
+        ))
+
+        self.addParameter(QgsProcessingParameterString(
+            "CSV_FIELD_TO_HEADER",
+            "EXIF data to add via CSV: Python Dict: EXIF_Tag:CSV_Column (must include: {'name':'<col>'} to match)",
+            optional=True
+        ))
 
     def processAlgorithm(self, parameters, context, feedback):
         apply_metadata(
             input_images=self.parameterAsFile(parameters, self.INPUT, context),
             metadata=eval(self.parameterAsString(parameters, self.METADATA, context)),
-            output_images=self.parameterAsString(parameters, self.OUTPUT, context) or None
+            output_images=self.parameterAsString(parameters, self.OUTPUT, context) or None,
+            csv_metadata_path = self.parameterAsString(parameters, "CSV_METADATA_PATH", context) or None,
+            csv_field_to_header = self.parameterAsString(parameters, "CSV_FIELD_TO_HEADER", context) or None,
+
         )
         return {}
 
