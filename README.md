@@ -85,12 +85,13 @@ Look up lenses compatible with the given camera.
 
 2. **System requirements:** Before installing, ensure you have the following system-level prerequisites:
 
-- exiftool.exe
+- exiftool
 - Python ≥ 3.10 and ≤ 3.12
 - PROJ ≥ 9.3
 - GDAL ≥ 3.10.2
+> **Python Version:** This plugin requires Python ≥ 3.10 and ≤ 3.13. QGIS ships with different versions of Python, to check, in the QGIS menu, go to QGIS>About gis. If your version of Python is not supported, you can update your QGIS (if available) or install it containerized with conda: `conda create -n qgis_env python=3.12.9 "gdal>=3.10.2" "proj>=9.3" qgis -c conda-forge`(may need to change package versions), `conda activate qgis_env`, then `qgis` to start the program.
 
-> **Manual installation required:** The only system requirement that is not already installed with QGIS is exiftool which will need to be manually installed. An easy way to install exiftool, along with a containerized version of QGIS, is wtih conda: `conda create -n qgis_env python=3.12 "gdal>=3.10.2" "proj>=9.3" exiftool qgis -c conda-forge`, `conda activate qgis_env`, then `qgis` to start the program. Alternatively, exiftool can be installed [here](https://exiftool.org/).
+> **Manual installation of EXIF Tool:** The only system requirement that is not already installed with QGIS is exiftool which will need to be manually installed. It can be downloaded [here](https://exiftool.org/) but then must be moved to a folder where Python can find it, although, some installers do this automatically. If it's not moved automatically, you must move the exiftool executable (exe, etc) to a system path location listed, which can be found by going to in `Plugin > Python Console` and typing`import sys; sys.path`. Then move the .exe (or other format) file to one of the folders listed and rename it (to exiftool.\<extension\>) if required (see install instructions in the downloaded EXIF Plugin for more info).
 
 > **Python dependencies:** The plugin will attempt to automatically install all Python dependencies that it requires in the QGIS Python interpreter using [QPIP](https://github.com/opengisch/qpip). If it is unable to, the user must manually locate the QGIS python interpreter and install the libraries dependencies.
 
