@@ -153,13 +153,13 @@ class FOVCalculator:
             if ImageClass.dsm_path:
                 new_altitude = get_altitude_at_point(utmx, utmy)
             if ImageClass.global_elevation:
-                new_altitude = get_altitude_from_open(latitude, longitude)
+                new_altitude = get_altitude_from_open(latitude, longitude, image)
             if image.relative_altitude == 0.0:
                 new_altitude = image.absolute_altitude
             if new_altitude and abs(new_altitude - image.relative_altitude) > 20:
                 new_altitude = image.relative_altitude
             if image.absolute_altitude == image.relative_altitude:
-                new_altitude = get_altitude_from_open(latitude, longitude)
+                new_altitude = get_altitude_from_open(latitude, longitude, image)
             if (
                 new_altitude is None
             ):  # and not config.dtm_path or not config.global_elevation is False or config.rtk:
