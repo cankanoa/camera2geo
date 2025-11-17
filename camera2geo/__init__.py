@@ -2,6 +2,7 @@
 from .main import camera2geo
 from .search import search_cameras, search_lenses
 from .metadata import apply_metadata, read_metadata
+from .prep import add_relative_altitude_to_csv
 
 __all__ = [
     "camera2geo",
@@ -9,6 +10,7 @@ __all__ = [
     "search_lenses",
     "apply_metadata",
     "read_metadata",
+    "add_relative_altitude_to_csv"
 ]
 
 # Name
