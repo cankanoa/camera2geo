@@ -185,3 +185,6 @@ Publishing a new version to GitHub versions, Pypi library, and QGIS plugin is al
 ```bash
 make version version=1.2.3
 ```
+
+## Project Support
+This library was developed at the [Spatial Data Analysis and Visualization Lab (SDAV)](https://hilo.hawaii.edu/sdav/) at the University of Hawaii at Hilo by Kanoa Lindiwe. Funding was partly provided by the [Hau‘oli Mau Loa Foundation](https://www.hauolimauloa.org/), in addition to the National Science Foundation EPSCoR grant 2149133, Change Hawaiʻi: Harnessing the Data Revolution for Island Resilience.
