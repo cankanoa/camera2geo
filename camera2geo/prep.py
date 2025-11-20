@@ -11,10 +11,15 @@ def add_relative_altitude_to_csv(
     elevation_raster_path: str,
 ):
     """
-    Add relative AGL height to a CSV using a GDAL DEM sample.
+    Compute relative altitude (AGL) for each row in a CSV using a DEM raster. For each record, the function samples the DEM at the latitude/longitude location, computes: relative_altitude = absolute_altitude - dem_elevation and writes the result to `output_field` in the same CSV file.
 
-    Computes: relative = absolute_altitude - DEM_elevation
-    and writes the result to `output_field` in-place.
+    Args:
+        csv_path (str): Path to the input CSV file.
+        lat_field (str): CSV column containing latitude values (WGS84).
+        lon_field (str): CSV column containing longitude values (WGS84).
+        absolute_field (str): CSV column with absolute altitude (MSL) values.
+        output_field (str): Name of the CSV column to write relative AGL values to.
+        elevation_raster_path (str): Path to the DEM raster used for elevation sampling.
     """
     # Open DEM
     ds = gdal.Open(elevation_raster_path)

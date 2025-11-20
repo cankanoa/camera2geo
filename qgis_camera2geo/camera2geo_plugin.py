@@ -263,6 +263,10 @@ class Camera2GeoPlugin:
         self.actProcessReadMetadata.triggered.connect(lambda: self.open_processing_tool("camera2geo:read_metadata"))
         menu.addAction(self.actProcessReadMetadata)
 
+        self.actProcessAddRelativeAltitude = QAction("Add Relative Altitude", self.iface.mainWindow())
+        self.actProcessAddRelativeAltitude.triggered.connect(lambda: self.open_processing_tool("camera2geo:add_relative_altitude"))
+        menu.addAction(self.actProcessAddRelativeAltitude)
+
         # Save to folder name
         # one or mulitple at the same time
 

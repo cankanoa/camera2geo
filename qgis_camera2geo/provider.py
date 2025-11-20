@@ -8,6 +8,7 @@ from .camera2geo_processing_algorithm import (
     CameraAndLensSearchAlgorithm,
     ApplyMetadataAlgorithm,
     ReadMetadataAlgorithm,
+    AddRelativeAltitudeAlgorithm,
 )
 
 
@@ -17,6 +18,7 @@ class Camera2GeoProvider(QgsProcessingProvider):
         self.addAlgorithm(CameraAndLensSearchAlgorithm())
         self.addAlgorithm(ApplyMetadataAlgorithm())
         self.addAlgorithm(ReadMetadataAlgorithm())
+        self.addAlgorithm(AddRelativeAltitudeAlgorithm())
 
     def id(self): return "camera2geo"
     def name(self): return "Camera2Geo"

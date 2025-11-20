@@ -16,7 +16,7 @@ from qgis.core import (
 from .camera2geo.main import camera2geo
 from .camera2geo.search import search_cameras, search_lenses
 from .camera2geo.metadata import apply_metadata, read_metadata
-
+from .camera2geo.prep import add_relative_altitude_to_csv
 
 # CAMERA2GEO
 
@@ -38,17 +38,16 @@ class Camera2GeoProcessingAlgorithm(QgsProcessingAlgorithm):
 
     def initAlgorithm(self, config=None):
 
-        # Input / Output
-        self.addParameter(QgsProcessingParameterFile(
+        self.addParameter(QgsProcessingParameterMultipleLayers(
             self.INPUT,
-            "Input Images (path or glob)",
-            behavior=QgsProcessingParameterFile.File
+            "Input Images",
         ))
+
 
         self.addParameter(QgsProcessingParameterFile(
             self.OUTPUT,
-            "Output Folder (path or glob)",
-            behavior=QgsProcessingParameterFile.File
+            "Output Folder (folder or glob)",
+            behavior=QgsProcessingParameterFile.Folder
         ))
 
         # CRS + Basic Options
@@ -147,7 +146,7 @@ class Camera2GeoProcessingAlgorithm(QgsProcessingAlgorithm):
             elevation_data = dsm_path
 
         camera2geo(
-            input_images=self.parameterAsFile(parameters, self.INPUT, context),
+            input_images=[lyr.source() for lyr in self.parameterAsLayerList(parameters, self.INPUT, context)],
             output_images=self.parameterAsString(parameters, self.OUTPUT, context),
             sensor_width_mm=self.parameterAsDouble(parameters, self.SENSOR_W, context),
             sensor_height_mm=self.parameterAsDouble(parameters, self.SENSOR_H, context),
@@ -165,7 +164,8 @@ class Camera2GeoProcessingAlgorithm(QgsProcessingAlgorithm):
     def group(self): return ""
     def groupId(self): return ""
     def createInstance(self): return Camera2GeoProcessingAlgorithm()
-
+    def shortHelpString(self):
+        return camera2geo.__doc__ or ""
 
 # CAMERA + LENS SEARCH
 
@@ -208,6 +208,8 @@ class CameraAndLensSearchAlgorithm(QgsProcessingAlgorithm):
     def group(self): return ""
     def groupId(self): return ""
     def createInstance(self): return CameraAndLensSearchAlgorithm()
+    def shortHelpString(self):
+        return (search_cameras.__doc__ + "\n" + search_lenses.__doc__) or ""
 
 
 # APPLY METADATA
@@ -218,10 +220,9 @@ class ApplyMetadataAlgorithm(QgsProcessingAlgorithm):
     OUTPUT = "OUTPUT"
 
     def initAlgorithm(self, config=None):
-        self.addParameter(QgsProcessingParameterFile(
+        self.addParameter(QgsProcessingParameterMultipleLayers(
             self.INPUT,
-            "Input Images (path or glob)",
-            behavior=QgsProcessingParameterFile.File
+            "Input Images",
         ))
 
         self.addParameter(QgsProcessingParameterString(
@@ -232,8 +233,8 @@ class ApplyMetadataAlgorithm(QgsProcessingAlgorithm):
 
         self.addParameter(QgsProcessingParameterFile(
             self.OUTPUT,
-            "Output Images (path or glob) or Blank to Update Images",
-            behavior=QgsProcessingParameterFile.File,
+            "Output Folder (folder or glob) or Blank to Update Images",
+            behavior=QgsProcessingParameterFile.Folder,
             optional=True
         ))
 
@@ -251,12 +252,14 @@ class ApplyMetadataAlgorithm(QgsProcessingAlgorithm):
         ))
 
     def processAlgorithm(self, parameters, context, feedback):
+        image_paths = [lyr.source() for lyr in self.parameterAsLayerList(parameters, self.INPUT, context)]
+
         apply_metadata(
-            input_images=self.parameterAsFile(parameters, self.INPUT, context),
-            metadata=eval(self.parameterAsString(parameters, self.METADATA, context)),
+            input_images=image_paths,
+            metadata=(eval(s) if (s := self.parameterAsString(parameters, "self.METADATA", context).strip()) else None),
             output_images=self.parameterAsString(parameters, self.OUTPUT, context) or None,
             csv_metadata_path = self.parameterAsString(parameters, "CSV_METADATA_PATH", context) or None,
-            csv_field_to_header = self.parameterAsString(parameters, "CSV_FIELD_TO_HEADER", context) or None,
+            csv_field_to_header = (eval(s) if (s := self.parameterAsString(parameters, "CSV_FIELD_TO_HEADER", context).strip()) else None),
 
         )
         return {}
@@ -266,7 +269,8 @@ class ApplyMetadataAlgorithm(QgsProcessingAlgorithm):
     def group(self): return ""
     def groupId(self): return ""
     def createInstance(self): return ApplyMetadataAlgorithm()
-
+    def shortHelpString(self):
+        return apply_metadata.__doc__ or ""
 
 # READ METADATA
 
@@ -286,3 +290,37 @@ class ReadMetadataAlgorithm(QgsProcessingAlgorithm):
     def group(self): return ""
     def groupId(self): return ""
     def createInstance(self): return ReadMetadataAlgorithm()
+    def shortHelpString(self):
+        return read_metadata.__doc__ or ""
+
+# ADD RELATIVE ALTITUDE
+
+class AddRelativeAltitudeAlgorithm(QgsProcessingAlgorithm):
+
+    def initAlgorithm(self, config=None):
+        self.addParameter(QgsProcessingParameterFile("INPUT", "Input CSV"))
+        self.addParameter(QgsProcessingParameterString("LAT", "Lat Field Header"))
+        self.addParameter(QgsProcessingParameterString("LON", "Lon Field Header"))
+        self.addParameter(QgsProcessingParameterString("ABS", "Absolute Altitude (MSL) Field Header"))
+        self.addParameter(QgsProcessingParameterString("REL", "Relative Altitude (AGL) Output Field Header"))
+        self.addParameter(QgsProcessingParameterFile("RAS_PATH", "Ellipsoidal Elevation Raster Path"))
+
+
+    def processAlgorithm(self, parameters, context, feedback):
+        add_relative_altitude_to_csv(
+            self.parameterAsFile(parameters, "INPUT", context),
+            self.parameterAsString(parameters, "LAT", context),
+            self.parameterAsString(parameters, "LON", context),
+            self.parameterAsString(parameters, "ABS", context),
+            self.parameterAsString(parameters, "REL", context),
+            self.parameterAsString(parameters, "RAS_PATH", context),
+        )
+        return {}
+
+    def name(self): return "add_relative_altitude"
+    def displayName(self): return "Add Relative Altitude"
+    def group(self): return ""
+    def groupId(self): return ""
+    def createInstance(self): return AddRelativeAltitudeAlgorithm()
+    def shortHelpString(self):
+        return add_relative_altitude_to_csv.__doc__ or ""
