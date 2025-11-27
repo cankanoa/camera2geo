@@ -218,6 +218,8 @@ class ApplyMetadataAlgorithm(QgsProcessingAlgorithm):
     INPUT = "INPUT"
     METADATA = "METADATA"
     OUTPUT = "OUTPUT"
+    CSV_METADATA_PATH = "CSV_METADATA_PATH"
+    CSV_FIELD_TO_HEADER = "CSV_FIELD_TO_HEADER"
 
     def initAlgorithm(self, config=None):
         self.addParameter(QgsProcessingParameterMultipleLayers(
@@ -239,27 +241,28 @@ class ApplyMetadataAlgorithm(QgsProcessingAlgorithm):
         ))
 
         self.addParameter(QgsProcessingParameterFile(
-            "CSV_METADATA_PATH",
+            self.CSV_METADATA_PATH,
             "EXIF data to add via CSV: CSV Path",
             behavior=QgsProcessingParameterFile.File,
             optional=True
         ))
 
         self.addParameter(QgsProcessingParameterString(
-            "CSV_FIELD_TO_HEADER",
+            self.CSV_FIELD_TO_HEADER,
             "EXIF data to add via CSV: Python Dict: EXIF_Tag:CSV_Column (must include: {'name':'<col>'} to match)",
             optional=True
         ))
 
     def processAlgorithm(self, parameters, context, feedback):
         image_paths = [lyr.source() for lyr in self.parameterAsLayerList(parameters, self.INPUT, context)]
+        feedback.pushInfo(f"Processing {len(image_paths)} images")
 
         apply_metadata(
             input_images=image_paths,
-            metadata=(eval(s) if (s := self.parameterAsString(parameters, "self.METADATA", context).strip()) else None),
+            metadata=(eval(s) if (s := self.parameterAsString(parameters, self.METADATA, context).strip()) else None),
             output_images=self.parameterAsString(parameters, self.OUTPUT, context) or None,
-            csv_metadata_path = self.parameterAsString(parameters, "CSV_METADATA_PATH", context) or None,
-            csv_field_to_header = (eval(s) if (s := self.parameterAsString(parameters, "CSV_FIELD_TO_HEADER", context).strip()) else None),
+            csv_metadata_path = self.parameterAsString(parameters, self.CSV_METADATA_PATH, context) or None,
+            csv_field_to_header = (eval(s) if (s := self.parameterAsString(parameters, self.CSV_FIELD_TO_HEADER, context).strip()) else None),
 
         )
         return {}
