@@ -9,7 +9,6 @@ from qgis.core import (
     QgsProcessingParameterString,
     QgsProcessingParameterNumber,
     QgsProcessingParameterFileDestination,
-    QgsProcessingParameterMultipleLayers,
     QgsProcessingParameterEnum,
     QgsProcessingParameterDefinition
 )
@@ -38,11 +37,10 @@ class Camera2GeoProcessingAlgorithm(QgsProcessingAlgorithm):
 
     def initAlgorithm(self, config=None):
 
-        self.addParameter(QgsProcessingParameterMultipleLayers(
+        self.addParameter(QgsProcessingParameterFile(
             self.INPUT,
             "Input Images",
         ))
-
 
         self.addParameter(QgsProcessingParameterFile(
             self.OUTPUT,
@@ -146,7 +144,7 @@ class Camera2GeoProcessingAlgorithm(QgsProcessingAlgorithm):
             elevation_data = dsm_path
 
         camera2geo(
-            input_images=[lyr.source() for lyr in self.parameterAsLayerList(parameters, self.INPUT, context)],
+            input_images=self.parameterAsString(parameters, self.INPUT, context),
             output_images=self.parameterAsString(parameters, self.OUTPUT, context),
             sensor_width_mm=self.parameterAsDouble(parameters, self.SENSOR_W, context),
             sensor_height_mm=self.parameterAsDouble(parameters, self.SENSOR_H, context),
@@ -222,43 +220,40 @@ class ApplyMetadataAlgorithm(QgsProcessingAlgorithm):
     CSV_FIELD_TO_HEADER = "CSV_FIELD_TO_HEADER"
 
     def initAlgorithm(self, config=None):
-        self.addParameter(QgsProcessingParameterMultipleLayers(
+        self.addParameter(QgsProcessingParameterFile(
             self.INPUT,
             "Input Images",
         ))
 
         self.addParameter(QgsProcessingParameterString(
             self.METADATA,
-            "EXIF data to add: Python Dict: EXIF_Tag:EXIF_Value (e.g. {'Composite:GPSLatitude':19.95882446})",
+            "EXIF Data to Add As a Python Dict Like tag:value; (e.g. {'Composite:GPSLatitude':19.95882446})",
             optional=True
         ))
 
         self.addParameter(QgsProcessingParameterFile(
             self.OUTPUT,
-            "Output Folder (folder or glob) or Blank to Update Images",
+            "Output Folder (folder or glob) or Blank to update Images",
             behavior=QgsProcessingParameterFile.Folder,
             optional=True
         ))
 
         self.addParameter(QgsProcessingParameterFile(
             self.CSV_METADATA_PATH,
-            "EXIF data to add via CSV: CSV Path",
+            "CSV Path With Unique Metadata per Image",
             behavior=QgsProcessingParameterFile.File,
             optional=True
         ))
 
         self.addParameter(QgsProcessingParameterString(
             self.CSV_FIELD_TO_HEADER,
-            "EXIF data to add via CSV: Python Dict: EXIF_Tag:CSV_Column (must include: {'name':'<col>'} to match)",
+            "Python Dict to Map Unique Metadata: tag:column (must include: {'name':'<col>'} to match)",
             optional=True
         ))
 
     def processAlgorithm(self, parameters, context, feedback):
-        image_paths = [lyr.source() for lyr in self.parameterAsLayerList(parameters, self.INPUT, context)]
-        feedback.pushInfo(f"Processing {len(image_paths)} images")
-
         apply_metadata(
-            input_images=image_paths,
+            input_images=self.parameterAsString(parameters, self.INPUT, context),
             metadata=(eval(s) if (s := self.parameterAsString(parameters, self.METADATA, context).strip()) else None),
             output_images=self.parameterAsString(parameters, self.OUTPUT, context) or None,
             csv_metadata_path = self.parameterAsString(parameters, self.CSV_METADATA_PATH, context) or None,
