@@ -10,7 +10,7 @@ where = ["."]
 
 [project]
 name = "camera2geo"
-version = "1.0.4"
+version = "1.0.5"
 description = "Camera to geographic space image conversion"
 readme = "README.md"
 license = {text = "AGPL"}
