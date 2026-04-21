@@ -1,13 +1,55 @@
 import os
-import exiftool
+import warnings
 
 from pathlib import Path
-from typing import List
+from typing import Callable, List
 
 from .utils.io import read_sensor_dimensions_from_csv, _resolve_paths
+from .utils.exiv2_backend import read_metadata_batch
 from .utils.metadata import ImageClass
 from .utils.fov import FOVCalculator
 from .utils.raster_utils import generate_geotiff
+
+
+def _resolve_elevation_mode(elevation_data: str | bool):
+    if elevation_data is False:
+        return "plane", None
+    if elevation_data is True:
+        return "online", None
+    if isinstance(elevation_data, str):
+        return "local", elevation_data
+
+    raise ValueError(
+        "elevation_data must be False, True, or a filesystem path string."
+    )
+
+
+def _configure_image_class(
+    *,
+    epsg: int,
+    correct_magnetic_declination: bool,
+    cog: bool,
+    image_equalize: bool,
+    lens_correction: bool,
+    elevation_mode: str,
+    dsm_path: str | None,
+    no_data_value: float | int,
+    replace_nodata_value: float | int | None,
+):
+    ImageClass.epsg = epsg
+    ImageClass.correct_magnetic_declination = correct_magnetic_declination
+    ImageClass.cog = cog
+    ImageClass.image_equalize = image_equalize
+    ImageClass.lens_correction = lens_correction
+    ImageClass.elevation_mode = elevation_mode
+    ImageClass.dsm_path = dsm_path
+    ImageClass.no_data_value = no_data_value
+    ImageClass.replace_nodata_value = replace_nodata_value
+
+
+def _report_progress(progress_callback: Callable[[float], None] | None, value: float):
+    if progress_callback is not None:
+        progress_callback(value)
 
 
 def camera2geo(
@@ -21,11 +63,14 @@ def camera2geo(
     cog: bool = False,
     image_equalize: bool = False,
     lens_correction: bool = False,
-    elevation_data: str | bool = False,
+    elevation_data: str | bool = True,
+    no_data_value: float | int = 0,
+    replace_nodata_value: float | int | None = 1,
+    progress_callback: Callable[[float], None] | None = None,
     sensor_info_csv: str = f"{os.path.dirname(os.path.abspath(__file__))}/sensors.csv",
 ) -> list:
     """
-    Convert raw camera or drone images to georeferenced GeoTIFFs. This function reads image EXIF metadata, determines camera geometry, and projects the image footprint into geographic space. A GeoTIFF is produced for each input image using ground elevation data from either a local DSM or an online elevation service.
+    Convert raw camera or drone images to georeferenced GeoTIFFs. This function reads image EXIF metadata, determines camera geometry, and projects the image footprint into geographic space. A GeoTIFF is produced for each input image using either the metadata relative altitude, a local DSM, or an online elevation service.
 
     Args:
         input_images (str | List[str], required): Defines input files from a glob path, folder, or list of paths. Specify like: "/input/files/*.JPG", "/input/folder" (assumes *.JPG), ["/input/one.JPG", "/input/two.JPG"].
@@ -37,7 +82,10 @@ def camera2geo(
         cog: If True, create Cloud-Optimized GeoTIFF output.
         image_equalize: If True, apply histogram equalization.
         lens_correction: If True, apply lens distortion correction.
-        elevation_data: Controls elevation source. If False, no elevation is used; if True, an online elevation service is queried; if a string, it is interpreted as a local DSM path.
+        elevation_data: Controls elevation source. If False, use the image metadata relative altitude as a flat plane. If True, query an online elevation service and compute relative altitude from the absolute altitude. If a string, interpret it as a local DSM path and compute relative altitude from the absolute altitude.
+        no_data_value: Pixel value used to fill empty warped areas and written as the output GeoTIFF nodata value.
+        replace_nodata_value: If provided, replace source pixels equal to no_data_value before warping so those pixels are preserved as regular image data.
+        progress_callback: Optional callback receiving progress values from 0-100.
         sensor_info_csv: CSV file containing known camera sensor dimensions with the following columns: DroneMake,DroneModel,CameraMake,SensorModel,RigCameraIndex,SensorWidth,SensorHeight,LensFOVw,LensFOVh
     """
 
@@ -55,35 +103,22 @@ def camera2geo(
         },
     )
 
-    # Elevation
-    if elevation_data is False:
-        elevation_mode = "none"
-        dsm_path = None
+    elevation_mode, dsm_path = _resolve_elevation_mode(elevation_data)
+    _configure_image_class(
+        epsg=epsg,
+        correct_magnetic_declination=correct_magnetic_declination,
+        cog=cog,
+        image_equalize=image_equalize,
+        lens_correction=lens_correction,
+        elevation_mode=elevation_mode,
+        dsm_path=dsm_path,
+        no_data_value=no_data_value,
+        replace_nodata_value=replace_nodata_value,
+    )
+    _report_progress(progress_callback, 5)
 
-    elif elevation_data is True:
-        elevation_mode = "online"
-        dsm_path = None
-
-    elif isinstance(elevation_data, str):
-        elevation_mode = "local"
-        dsm_path = elevation_data
-
-    else:
-        raise ValueError(
-            "elevation_data must be False, True, or a filesystem path string."
-        )
-
-    # Setup class attributes
-    ImageClass.epsg = epsg
-    ImageClass.correct_magnetic_declination = correct_magnetic_declination
-    ImageClass.cog = cog
-    ImageClass.image_equalize = image_equalize
-    ImageClass.lens_correction = lens_correction
-    ImageClass.elevation_mode = elevation_mode
-    ImageClass.dsm_path = dsm_path
-
-    with exiftool.ExifToolHelper() as et:
-        exif_array = et.get_metadata(input_image_paths)
+    exif_array = read_metadata_batch([str(path) for path in input_image_paths])
+    _report_progress(progress_callback, 20)
 
     # Load camera sensor specs
     sensor_dimensions = read_sensor_dimensions_from_csv(
@@ -95,11 +130,15 @@ def camera2geo(
         Path(p).parent.mkdir(parents=True, exist_ok=True)
 
     produced_paths = []
+    total_images = max(len(exif_array), 1)
 
     # Set per image
-    for exif, in_path, out_path in zip(
-        exif_array, input_image_paths, output_image_paths
+    for index, (exif, in_path, out_path) in enumerate(
+        zip(exif_array, input_image_paths, output_image_paths), start=1
     ):
+        start_progress = 20 + ((index - 1) / total_images) * 80
+        end_progress = 20 + (index / total_images) * 80
+        _report_progress(progress_callback, start_progress)
 
         # Create per-image object
         image = ImageClass(
@@ -110,6 +149,12 @@ def camera2geo(
         # Compute FOV footprint & bounding box
         fov = FOVCalculator(image)
         image.coord_array, image.footprint_coordinates = fov.get_fov_bbox(image)
+        if image.coord_array is None or image.footprint_coordinates is None:
+            warnings.warn(
+                f"Skipping {image.file_name} because footprint generation failed."
+            )
+            _report_progress(progress_callback, end_progress)
+            continue
 
         # Generate GeoTIFF
         generate_geotiff(
@@ -120,5 +165,7 @@ def camera2geo(
         )
 
         produced_paths.append(str(out_path))
+        _report_progress(progress_callback, end_progress)
 
+    _report_progress(progress_callback, 100)
     return produced_paths

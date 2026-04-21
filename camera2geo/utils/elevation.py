@@ -6,10 +6,9 @@
 import json
 import warnings
 
+from functools import lru_cache
 from rasterio import rasterio
 from rasterio.transform import rowcol
-from pyproj import Transformer
-from scipy.ndimage import map_coordinates
 from urllib.request import urlopen
 from urllib.error import HTTPError
 from time import sleep
@@ -19,58 +18,27 @@ from .metadata import ImageClass
 ATTEMPS_NUMBERS: int = 10
 
 
-class ElevationAdjuster:
-    def __init__(self, elevation_data, crs, affine_transform, image: ImageClass):
-        self.elevation_data = elevation_data
-        self.crs = crs  # Store the CRS
-        self.affine_transform = affine_transform
-        self.image = image
-
-    def terrain_adjustment(self, col, row):
-        try:
-            row_f, col_f = float(row), float(col)
-            interpolated_elevation = map_coordinates(
-                self.elevation_data, [[row_f], [col_f]], order=1, mode="nearest"
-            )[0]
-            return interpolated_elevation
-        except Exception as e:
-            warnings.warn(
-                f"Error calculating interpolated elevation: {e} for {self.image.file_name}. Switching to Default Altitudes."
-            )
-            return self.image.absolute_altitude
+@lru_cache(maxsize=2)
+def _load_local_elevation_data(dsm_path: str):
+    with rasterio.open(dsm_path) as src:
+        return src.read(1), src.crs, src.transform
 
 
 def load_elevation_data_and_crs():
     if ImageClass.dsm_path is None:
-        return None, None, None, None
+        return None, None, None
 
-    with rasterio.open(ImageClass.dsm_path) as src:
-        elevation_data = src.read(1)
-        crs = src.crs
-        affine_transform = src.transform
-
-    return elevation_data, crs, affine_transform
+    return _load_local_elevation_data(ImageClass.dsm_path)
 
 
-def translate_geo_to_utm(drone_longitude, drone_latitude, image: ImageClass):
-    elevation_data, crs, _, affine_transform = load_elevation_data_and_crs()
-    adjuster = ElevationAdjuster(elevation_data, crs, affine_transform, image)
+def get_ground_elevation_at_point(x, y, image: ImageClass):
+    elevation_data, _, affine_transform = load_elevation_data_and_crs()
+    if elevation_data is None or affine_transform is None:
+        return None
 
-    # Initialize transformer to convert from geographic coordinates to the CRS of the raster
-    transformer = Transformer.from_crs("EPSG:4326", adjuster.crs, always_xy=True)
-
-    # Transform drone coordinates
-    utm_x, utm_y = transformer.transform(drone_longitude, drone_latitude)
-    adjuster = ElevationAdjuster(elevation_data, crs, affine_transform, image)
-    return utm_x, utm_y, adjuster
-
-
-def get_altitude_at_point(x, y, image: ImageClass):
-    elevation_data, _, _, affine_transform = load_elevation_data_and_crs()
     row, col = rowcol(affine_transform, x, y)
     if 0 <= row < elevation_data.shape[0] and 0 <= col < elevation_data.shape[1]:
-        elevation = elevation_data[row, col]
-        return image.absolute_altitude - elevation
+        return elevation_data[row, col]
 
     warnings.warn(
         f"Point ({x}, {y}) is outside the elevation data bounds for file {image.file_name}. Switching to default elevation."
@@ -78,10 +46,26 @@ def get_altitude_at_point(x, y, image: ImageClass):
     return None
 
 
-def get_altitude_from_open(lat: float, long: float, image: ImageClass) -> float:
+def get_relative_altitude_from_local_dem(x, y, image: ImageClass):
+    ground_elevation = get_ground_elevation_at_point(x, y, image)
+    if ground_elevation is None:
+        return None
+
+    return image.absolute_altitude - ground_elevation
+
+
+def get_relative_altitude_from_ground_elevation(
+    ground_elevation: float | None, image: ImageClass
+):
+    if ground_elevation is None:
+        return None
+
+    return image.absolute_altitude - ground_elevation
+
+
+def get_ground_elevation_from_open(lat: float, long: float, image: ImageClass) -> float:
     """
-    Get GPS terrain altitude from open-elevation.com using input lat and long
-    Returns corrected altitude.
+    Get terrain elevation from open-elevation.com using input lat and long.
     """
 
     nb_of_failed_connection = 0
@@ -94,7 +78,7 @@ def get_altitude_from_open(lat: float, long: float, image: ImageClass) -> float:
             print(
                 f"Successfull connection to OpenElevation for file{image.file_name} with coordinates {lat},{long}"
             )
-            return image.absolute_altitude - elevation
+            return elevation
         except HTTPError as err:
             warnings.warn(
                 f"Connexion error for OpenElevation file:{image.file_name} coordinates {lat},{long}. Error: {err}"
@@ -105,16 +89,22 @@ def get_altitude_from_open(lat: float, long: float, image: ImageClass) -> float:
     print(
         f"Too many failures for file {image.file_name}. Switching to default elevation."
     )
-    image.elevation_mode = "plane"
     return None
 
 
-def get_altitudes_from_open(
+def get_relative_altitude_from_open(lat: float, long: float, image: ImageClass) -> float:
+    ground_elevation = get_ground_elevation_from_open(lat, long, image)
+    if ground_elevation is None:
+        return None
+
+    return image.absolute_altitude - ground_elevation
+
+
+def get_ground_elevations_from_open(
     latlon_tupples: list[tuple], image: ImageClass
 ) -> list[float]:
     """
-    Get GPS terrain altitude from open-elevation.com from a list of latlon tupples [(lat1,lon1),(lat2,lon2),...]
-    Returns list of corrected altitude.
+    Get terrain elevations from open-elevation.com for a list of latitude/longitude tuples.
     """
     url_coordinates = ""
     nb_of_coordinates = 0
@@ -135,11 +125,7 @@ def get_altitudes_from_open(
             print(
                 f"Successfull connection to OpenElevation for file {image.file_name} with coordinates {latlon_tupples}"
             )
-            # Extract altitude corrections
-            alitude_list = []
-            for result in json.loads(data)["results"]:
-                alitude_list.append(image.absolute_altitude - result["elevation"])
-            return alitude_list
+            return [result["elevation"] for result in json.loads(data)["results"]]
         except HTTPError as err:
             warnings.warn(
                 f"Unable to Connect to OpenElevation for file {image.file_name} with coordinates {latlon_tupples}. Error: {err}"
@@ -147,7 +133,17 @@ def get_altitudes_from_open(
             nb_of_failed_connection += 1
             # Sleep random time before next try
             sleep(nb_of_failed_connection)
-
-    print(f"Too many failures for file {image.filez}. Switching to default elevation.")
-    image.elevation_mode = "plane"
+    print(
+        f"Too many failures for file {image.file_name}. Switching to default elevation."
+    )
     return None
+
+
+def get_relative_altitudes_from_open(
+    latlon_tupples: list[tuple], image: ImageClass
+) -> list[float]:
+    ground_elevations = get_ground_elevations_from_open(latlon_tupples, image)
+    if ground_elevations is None:
+        return None
+
+    return [image.absolute_altitude - elevation for elevation in ground_elevations]

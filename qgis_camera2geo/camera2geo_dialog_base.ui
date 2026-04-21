@@ -6,12 +6,12 @@
    <bool>true</bool>
   </property>
   <property name="geometry">
-   <rect>
-    <x>0</x>
-    <y>0</y>
-    <width>400</width>
-    <height>464</height>
-   </rect>
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>400</width>
+     <height>560</height>
+    </rect>
   </property>
   <property name="minimumSize">
    <size>
@@ -20,10 +20,10 @@
    </size>
   </property>
   <property name="maximumSize">
-   <size>
-    <width>16777215</width>
-    <height>464</height>
-   </size>
+    <size>
+     <width>16777215</width>
+     <height>560</height>
+    </size>
   </property>
   <property name="windowTitle">
    <string>Camera2geo</string>
@@ -90,7 +90,7 @@
      <item>
       <widget class="QRadioButton" name="elevPlaneRadio">
        <property name="text">
-        <string>Plane</string>
+        <string>Plane (relative altitude)</string>
        </property>
        <attribute name="buttonGroup">
         <string notr="true">buttonGroup</string>
@@ -188,6 +188,30 @@
          <widget class="QgsDoubleSpinBox" name="sensorHeightSpin"/>
         </item>
        </layout>
+      </item>
+      <item>
+       <widget class="QLabel" name="label_8">
+        <property name="text">
+         <string>Output NoData Value</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QgsDoubleSpinBox" name="noDataValueSpin"/>
+      </item>
+      <item>
+       <widget class="QLabel" name="label_9">
+        <property name="text">
+         <string>Replace Input Pixels Equal to NoData Value</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QgsDoubleSpinBox" name="replaceNoDataValueSpin">
+        <property name="clearValue">
+         <double>0.000000000000000</double>
+        </property>
+       </widget>
       </item>
      </layout>
     </widget>

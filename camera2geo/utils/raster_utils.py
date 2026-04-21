@@ -5,16 +5,17 @@
 
 import os
 import sys
-import rasterio
-import numpy as np
-import cv2 as cv
-import warnings
 import math
-import cv2
+import warnings
+
+import cv2 as cv
 import lensfunpy
+import numpy as np
+import rasterio
 
 from shapely import Polygon
 from contextlib import contextmanager
+from pathlib import Path
 from rasterio.transform import from_bounds
 from rasterio.enums import ColorInterp
 from rasterio.warp import calculate_default_transform, reproject, Resampling
@@ -23,11 +24,30 @@ from rio_cogeo.profiles import cog_profiles
 from shapely.wkt import loads
 from skimage.exposure import equalize_adapthist
 from PIL import Image, ImageOps
-from pathlib import Path
 
 from .metadata import ImageClass
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".tif", ".tiff"}
+
+
+def _get_border_value(img_array):
+    no_data_value = ImageClass.no_data_value
+    if img_array.ndim == 2:
+        return no_data_value
+
+    band_count = img_array.shape[2]
+    return tuple([no_data_value] * band_count)
+
+
+def replace_source_nodata_value(img_array):
+    replace_value = ImageClass.replace_nodata_value
+    if replace_value is None:
+        return img_array
+
+    nodata_value = ImageClass.no_data_value
+    updated = np.array(img_array, copy=True)
+    updated[updated == nodata_value] = replace_value
+    return updated
 
 
 def warp_image_to_polygon(img_arry, polygon, coordinate_array):
@@ -80,7 +100,7 @@ def warp_image_to_polygon(img_arry, polygon, coordinate_array):
             h_matrix,
             (img_arry_equalized.shape[1], img_arry_equalized.shape[0]),
             borderMode=cv.BORDER_CONSTANT,
-            borderValue=(0, 0, 0),
+            borderValue=_get_border_value(img_arry_equalized),
         )
     except Exception as e:
         warnings.warn(f"Error warping image to polygon: {e}")
@@ -176,6 +196,7 @@ def array2ds(cv2_array, polygon_wkt):
         dtype=cv2_array.dtype,
         crs=crs,
         transform=transform,
+        nodata=ImageClass.no_data_value,
     )
 
     if bands == 1:
@@ -225,7 +246,7 @@ def warp_to_geotiff_file(geotiff_file: str, dataset):
             "transform": transform,
             "width": width,
             "height": height,
-            "nodata": 0,  # Set nodata value to 0 (transparent)
+            "nodata": ImageClass.no_data_value,
         }
     )
 
@@ -334,7 +355,7 @@ def create_mosaic(
 
 def set_raster_extents(image):
     try:
-        jpeg_img = cv2.imread(image.image_path, cv2.IMREAD_UNCHANGED)
+        jpeg_img = cv.imread(image.image_path, cv.IMREAD_UNCHANGED)
         if jpeg_img is None:
             warnings.warn(f"File not found: {image.image_path}")
             return
@@ -377,11 +398,11 @@ def set_raster_extents(image):
 
                 # Apply geometry distortion correction and obtain distortion maps
                 maps = mod.apply_geometry_distortion()
-                map_x = maps[:, :, 0]
-                map_y = maps[:, :, 1]
-
-                img_undistorted = cv2.remap(
-                    jpeg_img, map_x, map_y, interpolation=cv2.INTER_LANCZOS4
+                img_undistorted = cv.remap(
+                    jpeg_img,
+                    maps[:, :, 0],
+                    maps[:, :, 1],
+                    interpolation=cv.INTER_LANCZOS4,
                 )
             except IndexError as e:
                 ImageClass.lens_correction = False
@@ -396,9 +417,11 @@ def set_raster_extents(image):
         if jpeg_img.ndim == 2:  # Single band image
             adjImg = img_undistorted
         elif jpeg_img.ndim == 3:  # Multiband image
-            adjImg = cv2.cvtColor(img_undistorted, cv2.COLOR_BGR2RGB)
+            adjImg = cv.cvtColor(img_undistorted, cv.COLOR_BGR2RGB)
         else:
-            adjImg = cv2.cvtColor(img_undistorted, cv2.COLOR_BGR2RGBA)
+            adjImg = cv.cvtColor(img_undistorted, cv.COLOR_BGR2RGBA)
+
+        adjImg = replace_source_nodata_value(adjImg)
 
         rectify_and_warp_to_geotiff(
             adjImg, image.geotiff_file, fixed_polygon, image.coord_array
@@ -428,9 +451,12 @@ def rectify_and_warp_to_geotiff(
         georef_image_array = warp_image_to_polygon(
             jpeg_img_array, fixed_polygon, coordinate_array
         )
+        if georef_image_array is None:
+            return
         dsArray = array2ds(georef_image_array, polygon_wkt)
     except Exception as e:
         warnings.warn(f"Error during warping or dataset creation: {e}")
+        return
 
     # Warp the rasterio dataset to the destination path
     try:

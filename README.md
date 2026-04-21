@@ -7,7 +7,7 @@
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.17578622.svg)](https://doi.org/10.5281/zenodo.17578622)
 
 
-Camera2Geo converts raw drone or camera images into georeferenced GeoTIFFs via image metadata and a camera model. This can be helpful to quickly view individual aerial images in GIS software, label image features in geographic space, and view images in full resolution rather than in orthomosaic resolution. Most common drone sensors automatically work but custom implementations are possible. The core functionality is built from [Drone-Footprints](https://github.com/spifftek70/Drone-Footprints) but extended with additional features and an improved interface via a Python library, QGIS plugin, and CLI.
+Camera2Geo converts raw drone or camera images into georeferenced GeoTIFFs via image metadata and a camera model. This can be helpful to quickly view individual aerial images in GIS software, label image features in geographic space, and view images in full resolution rather than in orthomosaic resolution. Most common drone sensors automatically work but custom implementations are possible.
 
 > Please cite as: Lindiwe, K., Percival, J. E. H., & Perroy, R. (2025). Camera2Geo. Zenodo. https://doi.org/10.5281/zenodo.17578622
 
@@ -30,6 +30,8 @@ camera2geo(
     image_equalize = False,
     lens_correction = True,
     elevation_data = True,
+    no_data_value = 0,
+    replace_nodata_value = 1,
 )
 ```
 
@@ -45,7 +47,9 @@ camera2geo \
   --cog \
   --image_equalize \
   --lens_correction \
-  --elevation_data
+  --elevation_data \
+  --no_data_value 0 \
+  --replace_nodata_value 1
   ```
 
 ## Functionality
@@ -53,7 +57,7 @@ camera2geo \
 ### camera2geo()
 1. **Resolve Input Paths:** Uses a glob pattern to search for one or many images.
 
-2. **Read EXIF Metadata:** Uses exiftool to extract GPS location, orientation, camera intrinsics, timestamp, and flight parameters.
+2. **Read EXIF Metadata:** Uses the Python `exiv2` package to extract GPS location, orientation, camera intrinsics, timestamp, and flight parameters.
 
 3. **Determine Sensor Geometry:** Includes camera presets for many popular drones that are automatically applied but the user can provide custom values.
 
@@ -85,13 +89,10 @@ Look up lenses compatible with the given camera.
 
 2. **System requirements:** Before installing, ensure you have the following system-level prerequisites:
 
-- exiftool
 - Python ≥ 3.10 and ≤ 3.12
 - PROJ ≥ 9.3
 - GDAL ≥ 3.10.2
 > **Python Version:** This plugin requires Python ≥ 3.10 and ≤ 3.13. QGIS ships with different versions of Python, to check, in the QGIS menu, go to QGIS>About gis. If your version of Python is not supported, you can update your QGIS (if available) or install it containerized with conda: `conda create -n qgis_env python=3.12.9 "gdal>=3.10.2" "proj>=9.3" qgis -c conda-forge`(may need to change package versions), `conda activate qgis_env`, then `qgis` to start the program.
-
-> **Manual installation of EXIF Tool:** The only system requirement that is not already installed with QGIS is exiftool which will need to be manually installed. It can be downloaded [here](https://exiftool.org/) but then must be moved to a folder where Python can find it, although, some installers do this automatically. If it's not moved automatically, you must move the exiftool executable (exe, etc) to a system path location listed, which can be found by going to in `Plugin > Python Console` and typing`import sys; sys.path`. Then move the .exe (or other format) file to one of the folders listed and rename it (to exiftool.\<extension\>) if required (see install instructions in the downloaded EXIF Plugin for more info).
 
 > **Python dependencies:** The plugin will attempt to automatically install all Python dependencies that it requires in the QGIS Python interpreter using [QPIP](https://github.com/opengisch/qpip). If it is unable to, the user must manually locate the QGIS python interpreter and install the libraries dependencies.
 
@@ -105,7 +106,6 @@ Look up lenses compatible with the given camera.
 
 1. **System requirements:** Before installing, ensure you have the following system-level prerequisites:
 
-- exiftool.exe
 - Python ≥ 3.10 and ≤ 3.12
 - PROJ ≥ 9.3
 - GDAL ≥ 3.10.2
@@ -123,6 +123,8 @@ conda activate camera2geo
 pip install camera2geo
 ```
 
+This will install the Python `exiv2` dependency from PyPI as part of the package install.
+
 ---
 
 ### Source Installation
@@ -135,7 +137,6 @@ cd camera2geo
 
 2. **System requirements:** Before installing, ensure you have the following system-level prerequisites:
 
-- exiftool.exe
 - Python ≥ 3.10 and ≤ 3.12
 - PROJ ≥ 9.3
 - GDAL = 3.10.2

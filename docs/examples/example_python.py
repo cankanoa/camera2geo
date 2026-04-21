@@ -33,9 +33,9 @@ working_directory = os.getcwd()
 apply_metadata(
     input_images=f"{working_directory}/data_mavic2pro/input/DJI_0812.JPG",
     metadata={
-        "EXIF:FocalLength":None,
-        "EXIF:GPSLatitude":None,
-        "EXIF:GPSLongitude":None,
+        "Exif.Photo.FocalLength":None,
+        "Exif.GPSInfo.GPSLatitude":None,
+        "Exif.GPSInfo.GPSLongitude":None,
     },
 )
 
@@ -43,36 +43,36 @@ apply_metadata(
 apply_metadata(
     input_images=f"{working_directory}/data_mavic2pro/input/DJI_0812.JPG",
     metadata={
-        # "EXIF:GPSLatitude":None,
-        # "EXIF:GPSLongitude":None,
-        "EXIF:FocalLength":10.26, # Correct value: 10.26
-        # "EXIF:FocalLengthIn35mmFormat":None,
-        # "XMP:RelativeAltitude":None,
-        # "XMP:AbsoluteAltitude":None,
-        # "XMP:GimbalRollDegree":None,
-        # "XMP:GimbalPitchDegree":None,
-        # "XMP:GimbalYawDegree":None,
-        # "XMP:FlightPitchDegree":None,
-        # "XMP:FlightRollDegree":None,
-        # "XMP:FlightYawDegree":None,
-        # "EXIF:ImageWidth":None,
-        # "EXIF:ImageHeight":None,
-        # "EXIF:MaxApertureValue":None,
-        # "EXIF:DateTimeOriginal":None,
-        # "EXIF:Model":"Nikon D850",
-        # "XMP:RigCameraIndex":3,
+        # "Exif.GPSInfo.GPSLatitude":None,
+        # "Exif.GPSInfo.GPSLongitude":None,
+        "Exif.Photo.FocalLength":10.26, # Correct value: 10.26
+        # "Exif.Photo.FocalLengthIn35mmFilm":None,
+        # "Xmp.drone-dji.RelativeAltitude":None,
+        # "Xmp.drone-dji.AbsoluteAltitude":None,
+        # "Xmp.drone-dji.GimbalRollDegree":None,
+        # "Xmp.drone-dji.GimbalPitchDegree":None,
+        # "Xmp.drone-dji.GimbalYawDegree":None,
+        # "Xmp.drone-dji.FlightPitchDegree":None,
+        # "Xmp.drone-dji.FlightRollDegree":None,
+        # "Xmp.drone-dji.FlightYawDegree":None,
+        # "Exif.Photo.PixelXDimension":None,
+        # "Exif.Photo.PixelYDimension":None,
+        # "Exif.Photo.MaxApertureValue":None,
+        # "Exif.Photo.DateTimeOriginal":None,
+        # "Exif.Image.Model":"Nikon D850",
+        # "Xmp.drone-dji.RigCameraIndex":3,
         # "sensor_make":"Nikon",
     },
     csv_metadata_path=f"{working_directory}/data_mavic2pro/input/metadata.csv",
     csv_field_to_header={
         "name":"name",
-        "EXIF:GPSLatitude":"lat", # Correct value: 19.5133791944444,
-        "EXIF:GPSLongitude":"lon",# Correct value: -154.857850888889
-        # "XMP:AbsoluteAltitude":"abs_alt",
-        # "XMP:RelativeAltitude":"rel_alt",
-        # "XMP:GimbalRollDegree":"omega",
-        # "XMP:GimbalPitchDegree":"phi",
-        # "XMP:GimbalYawDegree":"kappa",
+        "Exif.GPSInfo.GPSLatitude":"lat", # Correct value: 19.5133791944444,
+        "Exif.GPSInfo.GPSLongitude":"lon",# Correct value: -154.857850888889
+        # "Xmp.drone-dji.AbsoluteAltitude":"abs_alt",
+        # "Xmp.drone-dji.RelativeAltitude":"rel_alt",
+        # "Xmp.drone-dji.GimbalRollDegree":"omega",
+        # "Xmp.drone-dji.GimbalPitchDegree":"phi",
+        # "Xmp.drone-dji.GimbalYawDegree":"kappa",
     },
 )
 

@@ -1,7 +1,8 @@
 import pytest
 from pathlib import Path
 from PIL import Image
-import exiftool
+
+pytest.importorskip("exiv2")
 
 from camera2geo import *
 
@@ -16,44 +17,29 @@ def test_image(tmp_path_factory):
     img = Image.new("RGB", (1, 1), (255, 255, 255))
     img.save(img_path)
 
-    with exiftool.ExifToolHelper() as et:
-        et.set_tags(
-            [str(img_path)],
-            {
-                # Position
-                "EXIF:GPSLatitude": 19.5134089444444,
-                "EXIF:GPSLongitude": -154.857994916667,
-
-                # Focal length fields
-                "EXIF:FocalLength": 10.26,
-                "EXIF:FocalLengthIn35mmFormat": 28,
-
-                # Altitude
-                "XMP:RelativeAltitude": "+74.90",
-                "XMP:AbsoluteAltitude": "+181.95",
-
-                # Gimbal orientation
-                "XMP:GimbalRollDegree": 0.00,
-                "XMP:GimbalPitchDegree": -89.9,
-                "XMP:GimbalYawDegree": -86.1,
-
-                # Flight orientation
-                "XMP:FlightPitchDegree": -2.3,
-                "XMP:FlightRollDegree": -4.3,
-                "XMP:FlightYawDegree": -77.8,
-
-                # Image size
-                "EXIF:ImageWidth": 5472,
-                "EXIF:ImageHeight": 3648,
-
-                # Other camera info
-                "EXIF:MaxApertureValue": 2.80014,
-                "EXIF:DateTimeOriginal": "2025:10:10 13:53:58",
-                "EXIF:Model": "L1D-20c",
-                "EXIF:Make": "Hasselblad",
-            },
-            params=["-overwrite_original_in_place"]
-        )
+    apply_metadata(
+        input_images=str(img_path),
+        metadata={
+            "Exif.GPSInfo.GPSLatitude": 19.5134089444444,
+            "Exif.GPSInfo.GPSLongitude": -154.857994916667,
+            "Exif.Photo.FocalLength": 10.26,
+            "Exif.Photo.FocalLengthIn35mmFilm": 28,
+            "Xmp.drone-dji.RelativeAltitude": "+74.90",
+            "Xmp.drone-dji.AbsoluteAltitude": "+181.95",
+            "Xmp.drone-dji.GimbalRollDegree": 0.00,
+            "Xmp.drone-dji.GimbalPitchDegree": -89.9,
+            "Xmp.drone-dji.GimbalYawDegree": -86.1,
+            "Xmp.drone-dji.FlightPitchDegree": -2.3,
+            "Xmp.drone-dji.FlightRollDegree": -4.3,
+            "Xmp.drone-dji.FlightYawDegree": -77.8,
+            "Exif.Photo.PixelXDimension": 5472,
+            "Exif.Photo.PixelYDimension": 3648,
+            "Exif.Photo.MaxApertureValue": 2.80014,
+            "Exif.Photo.DateTimeOriginal": "2025:10:10 13:53:58",
+            "Exif.Image.Model": "L1D-20c",
+            "Exif.Image.Make": "Hasselblad",
+        },
+    )
 
     return img_path
 
@@ -106,8 +92,8 @@ def test_read_metadata_focal_length(test_image):
     focal = entry["focal_length"]
 
     # The first non-null value should match the test fixture value
-    # (set in test_image fixture: EXIF:FocalLength = 10.26)
-    value = focal.get("EXIF:FocalLength")
+    # (set in test_image fixture: Exif.Photo.FocalLength = 10.26)
+    value = focal.get("Exif.Photo.FocalLength")
     assert value == 10.26, f"Expected focal length 10.26, got {value}"
 
 
@@ -118,7 +104,7 @@ def test_apply_metadata_update_and_verify(test_image, tmp_path):
     # Apply in-place
     apply_metadata(
         input_images=str(test_image),
-        metadata={"EXIF:FocalLength": new_focal},
+        metadata={"Exif.Photo.FocalLength": new_focal},
         output_images=None,
     )
 
@@ -127,5 +113,5 @@ def test_apply_metadata_update_and_verify(test_image, tmp_path):
     entry = md[str(test_image)]
     focal = entry["focal_length"]
 
-    value = focal.get("EXIF:FocalLength")
+    value = focal.get("Exif.Photo.FocalLength")
     assert value == new_focal, f"Expected focal length {new_focal}, got {value}"

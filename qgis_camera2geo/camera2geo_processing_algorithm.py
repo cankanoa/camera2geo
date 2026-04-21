@@ -33,6 +33,8 @@ class Camera2GeoProcessingAlgorithm(QgsProcessingAlgorithm):
 
     SENSOR_W = "SENSOR_W"
     SENSOR_H = "SENSOR_H"
+    NO_DATA_VALUE = "NO_DATA_VALUE"
+    REPLACE_NODATA_VALUE = "REPLACE_NODATA_VALUE"
 
 
     def initAlgorithm(self, config=None):
@@ -81,7 +83,7 @@ class Camera2GeoProcessingAlgorithm(QgsProcessingAlgorithm):
 
         # Elevation Mode (Radio Buttons)
         elev_choices = [
-            "Plane (no elevation)",
+            "Plane (relative altitude)",
             "Online Elevation via Open Elevation",
             "Local Elevation Raster"
         ]
@@ -89,7 +91,7 @@ class Camera2GeoProcessingAlgorithm(QgsProcessingAlgorithm):
             self.ELEV_MODE,
             "Elevation Source",
             options=elev_choices,
-            defaultValue=0,  # Plane
+            defaultValue=1,
             allowMultiple=False
         )
         self.addParameter(param_elev)
@@ -130,6 +132,30 @@ class Camera2GeoProcessingAlgorithm(QgsProcessingAlgorithm):
         sensor_h.setFlags(sensor_h.flags() | QgsProcessingParameterDefinition.FlagAdvanced)
         self.addParameter(sensor_h)
 
+        no_data_value = QgsProcessingParameterNumber(
+            self.NO_DATA_VALUE,
+            "Output NoData Value",
+            type=QgsProcessingParameterNumber.Double,
+            defaultValue=0,
+            optional=False
+        )
+        no_data_value.setFlags(
+            no_data_value.flags() | QgsProcessingParameterDefinition.FlagAdvanced
+        )
+        self.addParameter(no_data_value)
+
+        replace_nodata_value = QgsProcessingParameterNumber(
+            self.REPLACE_NODATA_VALUE,
+            "Replace Input Pixels Equal to NoData Value",
+            type=QgsProcessingParameterNumber.Double,
+            defaultValue=1,
+            optional=True
+        )
+        replace_nodata_value.setFlags(
+            replace_nodata_value.flags() | QgsProcessingParameterDefinition.FlagAdvanced
+        )
+        self.addParameter(replace_nodata_value)
+
 
     def processAlgorithm(self, parameters, context, feedback):
 
@@ -154,6 +180,13 @@ class Camera2GeoProcessingAlgorithm(QgsProcessingAlgorithm):
             image_equalize=self.parameterAsBool(parameters, self.EQUALIZE, context),
             lens_correction=self.parameterAsBool(parameters, self.LENS, context),
             elevation_data=elevation_data,
+            no_data_value=self.parameterAsDouble(parameters, self.NO_DATA_VALUE, context),
+            replace_nodata_value=(
+                self.parameterAsDouble(parameters, self.REPLACE_NODATA_VALUE, context)
+                if self.REPLACE_NODATA_VALUE in parameters
+                and parameters[self.REPLACE_NODATA_VALUE] not in (None, "")
+                else None
+            ),
         )
 
         return {self.OUTPUT: self.parameterAsString(parameters, self.OUTPUT, context)}
@@ -227,7 +260,7 @@ class ApplyMetadataAlgorithm(QgsProcessingAlgorithm):
 
         self.addParameter(QgsProcessingParameterString(
             self.METADATA,
-            "EXIF Data to Add As a Python Dict Like tag:value; (e.g. {'Composite:GPSLatitude':19.95882446})",
+            "Metadata to add as a Python dict with exiv2 tags like tag:value; (e.g. {'Exif.GPSInfo.GPSLatitude':19.95882446})",
             optional=True
         ))
 

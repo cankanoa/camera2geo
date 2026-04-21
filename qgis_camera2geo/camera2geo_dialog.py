@@ -30,6 +30,9 @@ from qgis.PyQt.QtCore import QSettings
 from qgis.core import QgsCoordinateReferenceSystem
 
 
+REPLACE_NODATA_DISABLED = -99999.0
+
+
 # This loads your .ui file so that PyQt can populate your plugin with the elements from Qt Designer
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'camera2geo_dialog_base.ui'))
@@ -39,6 +42,13 @@ class camera2geoDialog(QtWidgets.QDialog, FORM_CLASS):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setupUi(self)
+        self.noDataValueSpin.setMinimum(-1e12)
+        self.noDataValueSpin.setMaximum(1e12)
+        self.noDataValueSpin.setClearValue(0)
+        self.replaceNoDataValueSpin.setMinimum(-1e12)
+        self.replaceNoDataValueSpin.setMaximum(1e12)
+        self.replaceNoDataValueSpin.setSpecialValueText("Disabled")
+        self.replaceNoDataValueSpin.setClearValue(REPLACE_NODATA_DISABLED)
         self.load_settings()
 
         # Update UI
@@ -57,6 +67,12 @@ class camera2geoDialog(QtWidgets.QDialog, FORM_CLASS):
         s = QSettings()
         self.sensorWidthSpin.setValue(float(s.value("camera2geo/sensor_width_mm", 0) or 0))
         self.sensorHeightSpin.setValue(float(s.value("camera2geo/sensor_height_mm", 0) or 0))
+        self.noDataValueSpin.setValue(float(s.value("camera2geo/no_data_value", 0) or 0))
+        replace_nodata_value = s.value("camera2geo/replace_nodata_value", 1)
+        if replace_nodata_value in (None, ""):
+            self.replaceNoDataValueSpin.setValue(REPLACE_NODATA_DISABLED)
+        else:
+            self.replaceNoDataValueSpin.setValue(float(replace_nodata_value))
         epsg = int(s.value("camera2geo/epsg", 4326))
         self.crsWidget.setCrs(QgsCoordinateReferenceSystem.fromEpsgId(epsg))
         self.declinationCheck.setChecked(s.value("camera2geo/correct_magnetic_declination", False, type=bool))
@@ -64,7 +80,7 @@ class camera2geoDialog(QtWidgets.QDialog, FORM_CLASS):
         self.lensCheck.setChecked(s.value("camera2geo/lens_correction", False, type=bool))
 
         self.update_elevation_ui()
-        elevation_data = s.value("camera2geo/elevation_data", "plane")
+        elevation_data = s.value("camera2geo/elevation_data", "online")
         if elevation_data == "plane":
             self.elevPlaneRadio.setChecked(True)
         elif elevation_data == "online":
@@ -81,6 +97,12 @@ class camera2geoDialog(QtWidgets.QDialog, FORM_CLASS):
         s = QSettings()
         s.setValue("camera2geo/sensor_width_mm", self.sensorWidthSpin.value())
         s.setValue("camera2geo/sensor_height_mm", self.sensorHeightSpin.value())
+        s.setValue("camera2geo/no_data_value", self.noDataValueSpin.value())
+        replace_nodata_value = self.replaceNoDataValueSpin.value()
+        s.setValue(
+            "camera2geo/replace_nodata_value",
+            "" if replace_nodata_value == REPLACE_NODATA_DISABLED else replace_nodata_value,
+        )
         epsg = self.crsWidget.crs().postgisSrid()
         s.setValue("camera2geo/epsg", epsg)
         s.setValue("camera2geo/correct_magnetic_declination", self.declinationCheck.isChecked())
