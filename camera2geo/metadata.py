@@ -1,15 +1,15 @@
 import yaml
 
-from dataclasses import asdict
 from typing import Dict, Any, List
 
 from .utils.io import _resolve_paths
-from .utils.exiv2_backend import apply_metadata_updates, read_image_metadata
+from .utils.metadata_reader import read_image_metadata
+from .utils.metadata_writer import apply_metadata_updates
 
 
 def read_metadata(input_images: str | List[str]):
     """
-    Read metadata from one or more images and print the results as YAML and return values using native exiv2 tag names.
+    Read metadata from one or more images and print the normalized metadata as YAML.
 
     Args:
         input_images (str | List[str], required): Defines input files from a glob path, folder, or list of paths. Specify like: "/input/files/*.JPG", "/input/folder" (assumes *.JPG), ["/input/one.JPG", "/input/two.JPG"].
@@ -28,7 +28,7 @@ def read_metadata(input_images: str | List[str]):
 
     for image_path in input_image_paths:
         md = read_image_metadata(str(image_path))
-        results[str(image_path)] = asdict(md)
+        results[str(image_path)] = md.to_dict()
 
     print(yaml.dump(results, sort_keys=False))
     return results
@@ -42,7 +42,7 @@ def apply_metadata(
     csv_field_to_header: Dict[str, str] | None = None,
 ):
     """
-    Apply or remove metadata on one or more images. If `output_images` is not provided, edits are applied in-place; otherwise, input files are copied first.
+    Apply or remove metadata on one or more images using exiv2. If `output_images` is not provided, edits are applied in-place; otherwise, input files are copied first.
 
     Args:
         input_images (str | List[str], required): Defines input files from a glob path, folder, or list of paths. Specify like: "/input/files/*.JPG", "/input/folder" (assumes *.JPG), ["/input/one.JPG", "/input/two.JPG"].

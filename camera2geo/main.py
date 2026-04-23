@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Callable, List
 
 from .utils.io import read_sensor_dimensions_from_csv, _resolve_paths
-from .utils.exiv2_backend import read_metadata_batch
+from .utils.metadata_reader import read_metadata_batch
 from .utils.metadata import ImageClass
 from .utils.fov import FOVCalculator
 from .utils.raster_utils import generate_geotiff

@@ -34,6 +34,7 @@ dependencies = [
     "pyproj>=3.5",
     "shapely>=2.0.2",
     "exiv2>=0.18.1",
+    "ExifRead>=3.0.0",
     "pillow>=10.3.0",
     "vector3d>=1.1.1",
     "opencv-python>=4.9.0.80",

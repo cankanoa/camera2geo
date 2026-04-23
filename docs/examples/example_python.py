@@ -16,17 +16,6 @@ working_directory = os.getcwd()
 #     lens_model = "Mavic Pro"
 # )
 
-# %% Prop data
-
-# add_relative_altitude_to_csv(
-#     csv_path = "/path/to/metadata/csv/file.csv",
-#     lat_field="lat",
-#     lon_field="lon",
-#     absolute_field="abs_alt",
-#     output_field="rel_alt",
-#     elevation_raster_path="/elevation/raster/image.tif",
-# )
-
 # %% Add image metadata or remove it by setting to None
 
 # Remove metadata fields from DJI_0812.JPG for test
@@ -76,7 +65,7 @@ apply_metadata(
     },
 )
 
-# %% Read current metadata used in main function, first value in list takes president over subsequent ones
+# %% Read current metadata used in main function
 
 read_metadata(
     input_images=f"{working_directory}/data_mavic2pro/input/*.JPG"

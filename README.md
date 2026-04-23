@@ -57,7 +57,7 @@ camera2geo \
 ### camera2geo()
 1. **Resolve Input Paths:** Uses a glob pattern to search for one or many images.
 
-2. **Read EXIF Metadata:** Uses the Python `exiv2` package to extract GPS location, orientation, camera intrinsics, timestamp, and flight parameters.
+2. **Read EXIF Metadata:** Uses the pure-Python `ExifRead` package plus lightweight XMP parsing to extract GPS location, orientation, camera intrinsics, timestamp, and flight parameters.
 
 3. **Determine Sensor Geometry:** Includes camera presets for many popular drones that are automatically applied but the user can provide custom values.
 
@@ -71,10 +71,10 @@ camera2geo \
 7. **Output GeoTIFF Creation:** Writes georeferenced TIFFs to the output directory; optionally writes as COG.
 
 ### read_metadata()
- Read metadata from one or more images and print the results as YAML and return values. Each parameter includes all metadata source fields that contribute to its value (primary + fallback).
+Read metadata from one or more images with ExifRead and print the normalized metadata as YAML.
 
 ### apply_metadata()
-Apply or remove metadata on one or more images. If `output_images` is not provided, edits are applied in-place; otherwise, input files are copied first.
+Apply or remove metadata on one or more images with exiv2. If `output_images` is not provided, edits are applied in-place; otherwise, input files are copied first.
 
 ### search_cameras()
 Look up cameras by maker and model.
@@ -123,7 +123,7 @@ conda activate camera2geo
 pip install camera2geo
 ```
 
-This will install the Python `exiv2` dependency from PyPI as part of the package install.
+This installs `ExifRead` for metadata reads and `exiv2` for the optional metadata-writing helper.
 
 ---
 

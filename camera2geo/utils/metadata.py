@@ -1,7 +1,7 @@
 import warnings
 import magnetismi.magnetismi as api
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import ClassVar
 from datetime import datetime
@@ -12,28 +12,116 @@ from shapely.geometry.polygon import orient
 
 @dataclass
 class ImageMetadata:
-    file_name: str
-    latitude: float
-    longitude: float
-    gps_altitude: float | None
-    focal_length: float
-    focal_length35mm: float | None
-    relative_altitude: float | None
-    absolute_altitude: float | None
-    gimbal_roll_degree: float
-    gimbal_pitch_degree: float
-    gimbal_yaw_degree: float
-    flight_pitch_degree: float
-    flight_roll_degree: float
-    flight_yaw_degree: float
-    image_width: int
-    image_height: int
-    max_aperture_value: float | None
-    datetime_original: str | None
-    sensor_model_data: str | None
-    sensor_index: str
-    sensor_make: str | None
-    raw_metadata: dict = field(default_factory=dict)
+    tags: dict = field(default_factory=dict)
+
+    def get(self, key: str, default=None):
+        return self.tags.get(key, default)
+
+    @property
+    def file_name(self) -> str:
+        return self.tags["File FileName"]
+
+    @property
+    def latitude(self) -> float:
+        return float(self.tags["GPS GPSLatitude"])
+
+    @property
+    def longitude(self) -> float:
+        return float(self.tags["GPS GPSLongitude"])
+
+    @property
+    def gps_altitude(self) -> float | None:
+        return self.tags.get("GPS GPSAltitude")
+
+    @property
+    def focal_length(self) -> float:
+        return float(self.tags["EXIF FocalLength"])
+
+    @property
+    def focal_length35mm(self) -> float | None:
+        return self.tags.get("EXIF FocalLengthIn35mmFilm")
+
+    @property
+    def relative_altitude(self) -> float | None:
+        return self.tags.get("XMP drone-dji RelativeAltitude")
+
+    @property
+    def absolute_altitude(self) -> float | None:
+        return self.tags.get("XMP drone-dji AbsoluteAltitude")
+
+    @property
+    def gimbal_roll_degree(self) -> float:
+        return float(
+            self.tags.get("XMP drone-dji GimbalRollDegree")
+            if self.tags.get("XMP drone-dji GimbalRollDegree") is not None
+            else (self.tags.get("XMP drone-dji Roll") or 0.0)
+        )
+
+    @property
+    def gimbal_pitch_degree(self) -> float:
+        return float(
+            self.tags.get("XMP drone-dji GimbalPitchDegree")
+            if self.tags.get("XMP drone-dji GimbalPitchDegree") is not None
+            else (self.tags.get("XMP drone-dji Pitch") or 0.0)
+        )
+
+    @property
+    def gimbal_yaw_degree(self) -> float:
+        return float(
+            self.tags.get("XMP drone-dji GimbalYawDegree")
+            if self.tags.get("XMP drone-dji GimbalYawDegree") is not None
+            else (self.tags.get("XMP drone-dji Yaw") or 0.0)
+        )
+
+    @property
+    def flight_pitch_degree(self) -> float:
+        return float(self.tags.get("XMP drone-dji FlightPitchDegree") or 999.0)
+
+    @property
+    def flight_roll_degree(self) -> float:
+        return float(self.tags.get("XMP drone-dji FlightRollDegree") or 999.0)
+
+    @property
+    def flight_yaw_degree(self) -> float:
+        return float(self.tags.get("XMP drone-dji FlightYawDegree") or 999.0)
+
+    @property
+    def image_width(self) -> int:
+        return int(
+            self.tags.get("EXIF ExifImageWidth")
+            or self.tags.get("Image ImageWidth")
+        )
+
+    @property
+    def image_height(self) -> int:
+        return int(
+            self.tags.get("EXIF ExifImageLength")
+            or self.tags.get("Image ImageLength")
+        )
+
+    @property
+    def max_aperture_value(self) -> float | None:
+        return self.tags.get("EXIF MaxApertureValue")
+
+    @property
+    def datetime_original(self) -> str | None:
+        return self.tags.get("EXIF DateTimeOriginal")
+
+    @property
+    def sensor_model_data(self) -> str | None:
+        return self.tags.get("Image Model")
+
+    @property
+    def sensor_index(self) -> str:
+        return str(
+            self.tags.get("XMP drone-dji RigCameraIndex")
+            or self.tags.get("XMP drone-dji SensorIndex")
+            or ""
+        )
+
+    @property
+    def sensor_make(self) -> str | None:
+        return self.tags.get("Image Make")
 
     @property
     def metadata_relative_altitude(self) -> float:
@@ -44,7 +132,7 @@ class ImageMetadata:
         return float(self.absolute_altitude or self.gps_altitude or 0.0)
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        return dict(self.tags)
 
 
 @dataclass

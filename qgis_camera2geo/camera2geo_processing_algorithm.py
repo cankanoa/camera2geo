@@ -3,19 +3,16 @@ import yaml
 from qgis.core import (
     QgsProcessingAlgorithm,
     QgsProcessingParameterFile,
-    QgsProcessingParameterFolderDestination,
     QgsProcessingParameterBoolean,
     QgsProcessingParameterCrs,
     QgsProcessingParameterString,
     QgsProcessingParameterNumber,
-    QgsProcessingParameterFileDestination,
     QgsProcessingParameterEnum,
     QgsProcessingParameterDefinition
 )
 from .camera2geo.main import camera2geo
 from .camera2geo.search import search_cameras, search_lenses
 from .camera2geo.metadata import apply_metadata, read_metadata
-from .camera2geo.prep import add_relative_altitude_to_csv
 
 # CAMERA2GEO
 
@@ -323,35 +320,3 @@ class ReadMetadataAlgorithm(QgsProcessingAlgorithm):
     def createInstance(self): return ReadMetadataAlgorithm()
     def shortHelpString(self):
         return read_metadata.__doc__ or ""
-
-# ADD RELATIVE ALTITUDE
-
-class AddRelativeAltitudeAlgorithm(QgsProcessingAlgorithm):
-
-    def initAlgorithm(self, config=None):
-        self.addParameter(QgsProcessingParameterFile("INPUT", "Input CSV"))
-        self.addParameter(QgsProcessingParameterString("LAT", "Lat Field Header"))
-        self.addParameter(QgsProcessingParameterString("LON", "Lon Field Header"))
-        self.addParameter(QgsProcessingParameterString("ABS", "Absolute Altitude (MSL) Field Header"))
-        self.addParameter(QgsProcessingParameterString("REL", "Relative Altitude (AGL) Output Field Header"))
-        self.addParameter(QgsProcessingParameterFile("RAS_PATH", "Ellipsoidal Elevation Raster Path"))
-
-
-    def processAlgorithm(self, parameters, context, feedback):
-        add_relative_altitude_to_csv(
-            self.parameterAsFile(parameters, "INPUT", context),
-            self.parameterAsString(parameters, "LAT", context),
-            self.parameterAsString(parameters, "LON", context),
-            self.parameterAsString(parameters, "ABS", context),
-            self.parameterAsString(parameters, "REL", context),
-            self.parameterAsString(parameters, "RAS_PATH", context),
-        )
-        return {}
-
-    def name(self): return "add_relative_altitude"
-    def displayName(self): return "Add Relative Altitude"
-    def group(self): return ""
-    def groupId(self): return ""
-    def createInstance(self): return AddRelativeAltitudeAlgorithm()
-    def shortHelpString(self):
-        return add_relative_altitude_to_csv.__doc__ or ""
