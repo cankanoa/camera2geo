@@ -143,8 +143,10 @@ class ImageClass:
     cog: ClassVar[bool] = False
     image_equalize: ClassVar[bool] = False
     lens_correction: ClassVar[bool] = False
-    elevation_mode: ClassVar[str] = "plane"
-    dsm_path: ClassVar[str | None] = None
+    projection_mode: ClassVar[str] = "point"
+    elevation_surface: ClassVar[str] = "local_file"
+    elevation_file: ClassVar[str | None] = None
+    reproject_elevation_point: ClassVar[bool] = True
     no_data_value: ClassVar[float | int] = 0
     replace_nodata_value: ClassVar[float | int | None] = 1
 
@@ -161,6 +163,7 @@ class ImageClass:
     image_path: str = ""
     output_file: str = ""
     geotiff_file: str = ""
+    processing_error: str | None = None
     def __post_init__(self):
         self.file_name = self.metadata.file_name
 

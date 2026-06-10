@@ -33,6 +33,7 @@ from qgis.PyQt.QtGui import QIcon
 
 from .camera2geo.main import camera2geo as camera2geo_function
 from .camera2geo_dialog import REPLACE_NODATA_DISABLED, camera2geoDialog
+from .elevation_surface import get_opentopo_cache_file
 from .provider import Camera2GeoProvider
 
 # Initialize Qt resources from file resources.py
@@ -46,7 +47,7 @@ class AttributeInspectTool(QgsMapToolIdentifyFeature):
         self.on_hit = on_hit
 
     def canvasReleaseEvent(self, event):
-        if event.button() != Qt.LeftButton:
+        if event.button() != Qt.MouseButton.LeftButton:
             return
         layer = self.iface.activeLayer()
         if not layer or layer.type() != layer.VectorLayer:
@@ -272,7 +273,9 @@ class Camera2GeoPlugin:
         self.split_btn = QToolButton(self.toolbar)
         self.split_btn.setDefaultAction(self.actRun)
         self.split_btn.setMenu(menu)
-        self.split_btn.setPopupMode(QToolButton.MenuButtonPopup)
+        self.split_btn.setPopupMode(
+            QToolButton.ToolButtonPopupMode.MenuButtonPopup
+        )
         self.toolbar.addWidget(self.split_btn)
 
         # Keep old menu entry if you want
@@ -337,11 +340,12 @@ class Camera2GeoPlugin:
 
             if not output_paths:
                 self._log(
-                    f"Processing finished without output for {os.path.basename(path)}.",
+                    f"Processing finished without a projected output for {os.path.basename(path)}.",
                     Qgis.Critical,
                 )
                 self.iface.messageBar().pushCritical(
-                    "Camera2Geo", "Processing failed: no output file."
+                    "Camera2Geo",
+                    "Processing failed: no projected image could be generated.",
                 )
                 return
 
@@ -357,11 +361,19 @@ class Camera2GeoPlugin:
             self.actRun.setChecked(False)
 
     def _build_picker_params(self, path: str, out_dir: str, settings: QSettings):
-        elevation_data_value = settings.value("camera2geo/elevation_data", "online")
-        if elevation_data_value == "plane":
-            elevation_data_value = False
-        elif elevation_data_value == "online":
-            elevation_data_value = True
+        projection_value = settings.value("camera2geo/projection", "point")
+        if projection_value not in {"point", "mesh"}:
+            projection_value = "point"
+
+        elevation_surface_value = settings.value(
+            "camera2geo/elevation_surface", "opentopo_extent"
+        )
+        if elevation_surface_value not in {"local_file", "opentopo_extent"}:
+            elevation_surface_value = "opentopo_extent"
+
+        elevation_file_value = settings.value("camera2geo/elevation_file", "")
+        opentopo_extent_value = settings.value("camera2geo/opentopo_extent", "")
+        opentopo_api_key_value = settings.value("camera2geo/opentopo_api_key", "")
 
         replace_nodata_value = settings.value("camera2geo/replace_nodata_value", 1)
         if replace_nodata_value in ("", None):
@@ -388,16 +400,27 @@ class Camera2GeoPlugin:
             "lens_correction": settings.value(
                 "camera2geo/lens_correction", False, type=bool
             ),
-            "elevation_data": elevation_data_value,
+            "projection": projection_value,
+            "elevation_surface": elevation_surface_value,
+            "elevation_file": elevation_file_value or None,
+            "opentopo_extent": opentopo_extent_value or None,
+            "opentopo_api_key": opentopo_api_key_value or None,
+            "opentopo_cache_file": get_opentopo_cache_file(self.plugin_dir),
+            "reproject_elevation_point": settings.value(
+                "camera2geo/reproject_elevation_point", True, type=bool
+            ),
             "no_data_value": settings.value("camera2geo/no_data_value", 0, type=float),
             "replace_nodata_value": replace_nodata_value,
         }
 
     def _load_output_layer(self, out_path: str):
         if not out_path or not os.path.exists(out_path):
-            self._log("Processing failed because no output file was created.", Qgis.Critical)
+            self._log(
+                f"Processing failed because the output raster was not written: {out_path}",
+                Qgis.Critical,
+            )
             self.iface.messageBar().pushCritical(
-                "Camera2Geo", "Processing failed: no output file."
+                "Camera2Geo", "Processing failed: output raster was not written."
             )
             return
 
@@ -436,7 +459,7 @@ class Camera2GeoPlugin:
 
     def open_settings_dialog(self):
         if self.dlg is None:
-            self.dlg = camera2geoDialog()
+            self.dlg = camera2geoDialog(self.iface)
         self.dlg.show()
         self.dlg.raise_()
         self.dlg.activateWindow()
@@ -459,7 +482,7 @@ class Camera2GeoPlugin:
         # Only create GUI ONCE in callback, so that it will only load when the plugin is started
         if self.first_start == True:
             self.first_start = False
-            self.dlg = camera2geoDialog()
+            self.dlg = camera2geoDialog(self.iface)
 
         # show the dialog
         self.dlg.show()

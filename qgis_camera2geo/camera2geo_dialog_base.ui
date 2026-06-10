@@ -10,7 +10,7 @@
      <x>0</x>
      <y>0</y>
      <width>400</width>
-     <height>560</height>
+     <height>0</height>
     </rect>
   </property>
   <property name="minimumSize">
@@ -22,7 +22,7 @@
   <property name="maximumSize">
     <size>
      <width>16777215</width>
-     <height>560</height>
+     <height>16777215</height>
     </size>
   </property>
   <property name="windowTitle">
@@ -30,7 +30,13 @@
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
-    <widget class="QLabel" name="label_5">
+   <widget class="QLabel" name="label_5">
+     <property name="font">
+      <font>
+       <pointsize>13</pointsize>
+       <bold>true</bold>
+      </font>
+     </property>
      <property name="text">
       <string>Image Path Field Name</string>
      </property>
@@ -44,7 +50,13 @@
     </widget>
    </item>
    <item>
-    <widget class="QLabel" name="label_6">
+   <widget class="QLabel" name="label_6">
+     <property name="font">
+      <font>
+       <pointsize>13</pointsize>
+       <bold>true</bold>
+      </font>
+     </property>
      <property name="text">
       <string>Output QGIS Group Name</string>
      </property>
@@ -69,7 +81,13 @@
     </layout>
    </item>
    <item>
-    <widget class="QLabel" name="label_4">
+   <widget class="QLabel" name="label_4">
+     <property name="font">
+      <font>
+       <pointsize>13</pointsize>
+       <bold>true</bold>
+      </font>
+     </property>
      <property name="text">
       <string>Output Projection</string>
      </property>
@@ -79,51 +97,203 @@
     <widget class="QgsProjectionSelectionWidget" name="crsWidget"/>
    </item>
    <item>
-    <widget class="QLabel" name="label">
+   <widget class="QLabel" name="label">
+     <property name="font">
+      <font>
+       <pointsize>13</pointsize>
+       <bold>true</bold>
+      </font>
+     </property>
      <property name="text">
-      <string>Elevation Raster</string>
+      <string>Projection</string>
      </property>
     </widget>
    </item>
    <item>
-    <layout class="QHBoxLayout" name="horizontalLayout">
+    <layout class="QVBoxLayout" name="projectionLayout">
      <item>
-      <widget class="QRadioButton" name="elevPlaneRadio">
+      <widget class="QRadioButton" name="projectionPointRadio">
        <property name="text">
-        <string>Plane (relative altitude)</string>
+        <string>Point</string>
        </property>
        <attribute name="buttonGroup">
-        <string notr="true">buttonGroup</string>
+        <string notr="true">projectionButtonGroup</string>
        </attribute>
       </widget>
      </item>
      <item>
-      <widget class="QRadioButton" name="elevOnlineRadio">
+      <widget class="QRadioButton" name="projectionMeshRadio">
        <property name="text">
-        <string>Online</string>
+        <string>Mesh</string>
        </property>
        <attribute name="buttonGroup">
-        <string notr="true">buttonGroup</string>
-       </attribute>
-      </widget>
-     </item>
-     <item>
-      <widget class="QRadioButton" name="elevLocalRadio">
-       <property name="enabled">
-        <bool>true</bool>
-       </property>
-       <property name="text">
-        <string>Local</string>
-       </property>
-       <attribute name="buttonGroup">
-        <string notr="true">buttonGroup</string>
+        <string notr="true">projectionButtonGroup</string>
        </attribute>
       </widget>
      </item>
     </layout>
    </item>
    <item>
-    <widget class="QgsFileWidget" name="dsmFileWidget"/>
+   <widget class="QLabel" name="label_10">
+     <property name="font">
+      <font>
+       <pointsize>13</pointsize>
+       <bold>true</bold>
+      </font>
+     </property>
+     <property name="text">
+      <string>Elevation Surface</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <layout class="QVBoxLayout" name="surfaceLayout">
+     <item>
+      <widget class="QRadioButton" name="surfaceLocalFileRadio">
+       <property name="text">
+        <string>Local File Path</string>
+       </property>
+       <attribute name="buttonGroup">
+        <string notr="true">surfaceButtonGroup</string>
+       </attribute>
+      </widget>
+     </item>
+     <item>
+      <widget class="QRadioButton" name="surfaceOpenTopoRadio">
+       <property name="text">
+        <string>OpenTopo Extent (SRTMGL1_E)</string>
+       </property>
+       <attribute name="buttonGroup">
+        <string notr="true">surfaceButtonGroup</string>
+       </attribute>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="openTopoBoundingBoxGroup">
+     <property name="title">
+      <string>Download Elevation Raster</string>
+     </property>
+     <layout class="QVBoxLayout" name="openTopoBoundingBoxLayout">
+      <item>
+       <widget class="QLabel" name="localElevationFileLabel">
+        <property name="text">
+         <string>Elevation Raster File</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QgsFileWidget" name="localElevationFileWidget"/>
+      </item>
+      <item>
+       <widget class="QLabel" name="openTopoLinksLabel">
+        <property name="text">
+         <string>&lt;a href=&quot;https://portal.opentopography.org/myopentopo&quot;&gt;Get an OpenTopography API key&lt;/a&gt; • &lt;a href=&quot;https://opentopography.org/developers&quot;&gt;API information&lt;/a&gt;</string>
+        </property>
+        <property name="textFormat">
+         <enum>Qt::RichText</enum>
+        </property>
+        <property name="openExternalLinks">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="openTopoApiKeyLabel">
+        <property name="text">
+         <string>OpenTopo API Key</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLineEdit" name="openTopoApiKeyEdit"/>
+      </item>
+      <item>
+       <widget class="QLabel" name="openTopoBoundsLabel">
+        <property name="text">
+         <string>OpenTopo Extent (WGS84)</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLineEdit" name="openTopoExtentEdit">
+        <property name="placeholderText">
+         <string>[west, south, east, north]</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="openTopoExtentSourceLayout">
+        <item>
+         <widget class="QLabel" name="layerLabel">
+          <property name="text">
+           <string>Layer:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QgsMapLayerComboBox" name="openTopoLayerCombo"/>
+        </item>
+        <item>
+         <widget class="QLabel" name="bookmarkLabel">
+          <property name="text">
+           <string>Bookmark:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QComboBox" name="openTopoBookmarkCombo"/>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="openTopoExtentActionLayout">
+        <item>
+         <widget class="QPushButton" name="canvasExtentButton">
+          <property name="text">
+           <string>Canvas Extent</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="drawExtentButton">
+          <property name="text">
+           <string>Draw</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="QPushButton" name="downloadOpenTopoButton">
+        <property name="text">
+         <string>Download Elevation Surface</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="reprojectElevationPointCheck">
+        <property name="text">
+         <string>Reproject point coords into elevation CRS</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="otherLabel">
+     <property name="font">
+      <font>
+       <pointsize>13</pointsize>
+       <bold>true</bold>
+      </font>
+     </property>
+     <property name="text">
+      <string>Other</string>
+     </property>
+    </widget>
    </item>
    <item>
     <widget class="QCheckBox" name="declinationCheck">
@@ -217,14 +387,31 @@
     </widget>
    </item>
    <item>
-    <widget class="QDialogButtonBox" name="button_box">
-     <property name="orientation">
-      <enum>Qt::Horizontal</enum>
-     </property>
-     <property name="standardButtons">
-      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
-     </property>
-    </widget>
+   <layout class="QHBoxLayout" name="buttonRowLayout">
+     <item>
+      <spacer name="horizontalSpacer">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QDialogButtonBox" name="button_box">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="standardButtons">
+        <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+       </property>
+      </widget>
+     </item>
+    </layout>
    </item>
   </layout>
  </widget>
@@ -249,6 +436,11 @@
    <class>QgsProjectionSelectionWidget</class>
    <extends>QWidget</extends>
    <header>qgsprojectionselectionwidget.h</header>
+  </customwidget>
+  <customwidget>
+   <class>QgsMapLayerComboBox</class>
+   <extends>QWidget</extends>
+   <header>qgsmaplayercombobox.h</header>
   </customwidget>
  </customwidgets>
  <resources/>
@@ -287,6 +479,7 @@
   </connection>
  </connections>
  <buttongroups>
-  <buttongroup name="buttonGroup"/>
+  <buttongroup name="projectionButtonGroup"/>
+  <buttongroup name="surfaceButtonGroup"/>
  </buttongroups>
 </ui>

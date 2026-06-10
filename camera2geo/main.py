@@ -8,20 +8,55 @@ from .utils.io import read_sensor_dimensions_from_csv, _resolve_paths
 from .utils.metadata_reader import read_metadata_batch
 from .utils.metadata import ImageClass
 from .utils.fov import FOVCalculator
+from .utils.opentopo import download_opentopo_dem
 from .utils.raster_utils import generate_geotiff
 
 
-def _resolve_elevation_mode(elevation_data: str | bool):
-    if elevation_data is False:
-        return "plane", None
-    if elevation_data is True:
-        return "online", None
-    if isinstance(elevation_data, str):
-        return "local", elevation_data
+VALID_PROJECTION_MODES = {"point", "mesh"}
+VALID_ELEVATION_SURFACES = {"local_file", "opentopo_extent"}
 
-    raise ValueError(
-        "elevation_data must be False, True, or a filesystem path string."
-    )
+
+def _resolve_surface_inputs(
+    projection: str,
+    elevation_surface: str,
+    elevation_file: str | None,
+    opentopo_extent: str | tuple[float, float, float, float] | None,
+    opentopo_api_key: str | None,
+    opentopo_cache_file: str | None,
+    default_cache_file: str,
+):
+    if projection not in VALID_PROJECTION_MODES:
+        raise ValueError(
+            f"projection must be one of {sorted(VALID_PROJECTION_MODES)}."
+        )
+    if elevation_surface not in VALID_ELEVATION_SURFACES:
+        raise ValueError(
+            "elevation_surface must be one of "
+            f"{sorted(VALID_ELEVATION_SURFACES)}."
+        )
+
+    resolved_elevation_file = elevation_file
+    if elevation_surface == "local_file":
+        if not elevation_file:
+            raise ValueError(
+                "elevation_file is required when elevation_surface='local_file'."
+            )
+    else:
+        if not opentopo_extent:
+            raise ValueError(
+                "opentopo_extent is required when elevation_surface='opentopo_extent'."
+            )
+        if not opentopo_api_key:
+            raise ValueError(
+                "opentopo_api_key is required when elevation_surface='opentopo_extent'."
+            )
+        resolved_elevation_file = download_opentopo_dem(
+            extent_4326=opentopo_extent,
+            api_key=opentopo_api_key,
+            output_path=opentopo_cache_file or default_cache_file,
+        )
+
+    return projection, elevation_surface, resolved_elevation_file
 
 
 def _configure_image_class(
@@ -31,8 +66,10 @@ def _configure_image_class(
     cog: bool,
     image_equalize: bool,
     lens_correction: bool,
-    elevation_mode: str,
-    dsm_path: str | None,
+    projection_mode: str,
+    elevation_surface: str,
+    elevation_file: str | None,
+    reproject_elevation_point: bool,
     no_data_value: float | int,
     replace_nodata_value: float | int | None,
 ):
@@ -41,8 +78,10 @@ def _configure_image_class(
     ImageClass.cog = cog
     ImageClass.image_equalize = image_equalize
     ImageClass.lens_correction = lens_correction
-    ImageClass.elevation_mode = elevation_mode
-    ImageClass.dsm_path = dsm_path
+    ImageClass.projection_mode = projection_mode
+    ImageClass.elevation_surface = elevation_surface
+    ImageClass.elevation_file = elevation_file
+    ImageClass.reproject_elevation_point = reproject_elevation_point
     ImageClass.no_data_value = no_data_value
     ImageClass.replace_nodata_value = replace_nodata_value
 
@@ -63,14 +102,20 @@ def camera2geo(
     cog: bool = False,
     image_equalize: bool = False,
     lens_correction: bool = False,
-    elevation_data: str | bool = True,
+    projection: str = "point",
+    elevation_surface: str = "local_file",
+    elevation_file: str | None = None,
+    opentopo_extent: str | tuple[float, float, float, float] | None = None,
+    opentopo_api_key: str | None = None,
+    opentopo_cache_file: str | None = None,
+    reproject_elevation_point: bool = True,
     no_data_value: float | int = 0,
     replace_nodata_value: float | int | None = 1,
     progress_callback: Callable[[float], None] | None = None,
     sensor_info_csv: str = f"{os.path.dirname(os.path.abspath(__file__))}/sensors.csv",
 ) -> list:
     """
-    Convert raw camera or drone images to georeferenced GeoTIFFs. This function reads image EXIF metadata, determines camera geometry, and projects the image footprint into geographic space. A GeoTIFF is produced for each input image using either the metadata relative altitude, a local DSM, or an online elevation service.
+    Convert raw camera or drone images to georeferenced GeoTIFFs. This function reads image EXIF metadata, determines camera geometry, and projects the image footprint into geographic space. A GeoTIFF is produced for each input image using a projection mode (`point` or `mesh`) and an elevation surface (`local_file` or `opentopo_extent`).
 
     Args:
         input_images (str | List[str], required): Defines input files from a glob path, folder, or list of paths. Specify like: "/input/files/*.JPG", "/input/folder" (assumes *.JPG), ["/input/one.JPG", "/input/two.JPG"].
@@ -82,7 +127,13 @@ def camera2geo(
         cog: If True, create Cloud-Optimized GeoTIFF output.
         image_equalize: If True, apply histogram equalization.
         lens_correction: If True, apply lens distortion correction.
-        elevation_data: Controls elevation source. If False, use the image metadata relative altitude as a flat plane. If True, query an online elevation service and compute relative altitude from the absolute altitude. If a string, interpret it as a local DSM path and compute relative altitude from the absolute altitude.
+        projection: Projection mode. Use `point` for camera-point elevation against a flat plane or `mesh` for full ray intersection against the elevation surface.
+        elevation_surface: Elevation surface source. Use `local_file` for a supplied raster path or `opentopo_extent` to download an OpenTopography raster for a WGS84 bounding box.
+        elevation_file: Local elevation raster path when `elevation_surface='local_file'`.
+        opentopo_extent: WGS84 bounding box as `(west, south, east, north)` or `"west,south,east,north"` when `elevation_surface='opentopo_extent'`.
+        opentopo_api_key: OpenTopography API key when `elevation_surface='opentopo_extent'`.
+        opentopo_cache_file: Optional raster path used to store the downloaded OpenTopography surface. If omitted, a cache file is created beside the first output raster.
+        reproject_elevation_point: If True, transform sampled point coordinates from the image UTM CRS into the elevation raster CRS before reading heights.
         no_data_value: Pixel value used to fill empty warped areas and written as the output GeoTIFF nodata value.
         replace_nodata_value: If provided, replace source pixels equal to no_data_value before warping so those pixels are preserved as regular image data.
         progress_callback: Optional callback receiving progress values from 0-100.
@@ -103,15 +154,28 @@ def camera2geo(
         },
     )
 
-    elevation_mode, dsm_path = _resolve_elevation_mode(elevation_data)
+    default_cache_file = str(
+        Path(output_image_paths[0]).parent / "_camera2geo_opentopo_surface.tif"
+    )
+    projection_mode, elevation_surface, elevation_file = _resolve_surface_inputs(
+        projection,
+        elevation_surface,
+        elevation_file,
+        opentopo_extent,
+        opentopo_api_key,
+        opentopo_cache_file,
+        default_cache_file,
+    )
     _configure_image_class(
         epsg=epsg,
         correct_magnetic_declination=correct_magnetic_declination,
         cog=cog,
         image_equalize=image_equalize,
         lens_correction=lens_correction,
-        elevation_mode=elevation_mode,
-        dsm_path=dsm_path,
+        projection_mode=projection_mode,
+        elevation_surface=elevation_surface,
+        elevation_file=elevation_file,
+        reproject_elevation_point=reproject_elevation_point,
         no_data_value=no_data_value,
         replace_nodata_value=replace_nodata_value,
     )
@@ -130,6 +194,7 @@ def camera2geo(
         Path(p).parent.mkdir(parents=True, exist_ok=True)
 
     produced_paths = []
+    failure_messages = []
     total_images = max(len(exif_array), 1)
 
     # Set per image
@@ -150,22 +215,36 @@ def camera2geo(
         fov = FOVCalculator(image)
         image.coord_array, image.footprint_coordinates = fov.get_fov_bbox(image)
         if image.coord_array is None or image.footprint_coordinates is None:
-            warnings.warn(
-                f"Skipping {image.file_name} because footprint generation failed."
+            failure_message = (
+                image.processing_error
+                or f"Skipping {image.file_name} because footprint generation failed."
             )
+            warnings.warn(failure_message)
+            failure_messages.append(failure_message)
             _report_progress(progress_callback, end_progress)
             continue
 
         # Generate GeoTIFF
-        generate_geotiff(
+        write_success, write_error = generate_geotiff(
             self=image,
             input_dir=str(Path(in_path).parent),
             output_dir=str(Path(out_path).parent),
             output_path=str(out_path),
         )
+        if not write_success:
+            failure_message = (
+                write_error
+                or f"GeoTIFF writing failed for {image.file_name}."
+            )
+            warnings.warn(failure_message)
+            failure_messages.append(failure_message)
+            _report_progress(progress_callback, end_progress)
+            continue
 
         produced_paths.append(str(out_path))
         _report_progress(progress_callback, end_progress)
 
     _report_progress(progress_callback, 100)
+    if not produced_paths and failure_messages:
+        raise RuntimeError(failure_messages[0])
     return produced_paths

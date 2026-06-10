@@ -13,15 +13,8 @@ from .geospatial import (
     find_geodetic_intersections,
     gps_to_utm,
     translate_to_wgs84,
-    utm_to_latlon,
 )
-from .elevation import (
-    get_ground_elevation_at_point,
-    get_relative_altitude_from_ground_elevation,
-    get_relative_altitude_from_local_dem,
-    get_relative_altitude_from_open,
-    get_relative_altitudes_from_open,
-)
+from .elevation import ImageProjectionSolver
 from .metadata import ImageClass
 
 
@@ -141,110 +134,32 @@ class FOVCalculator:
 
     def get_fov_bbox(self, image: ImageClass):
         try:
-            utmx, utmy, zone_number, zone_letter = gps_to_utm(
-                self.latitude, self.longitude
-            )
-            image.set_relative_altitude(self._resolve_relative_altitude(utmx, utmy))
-            corrected_altitude = self._atmospheric_refraction_correction(
-                image.relative_altitude
-            )
+            utmx, utmy, _, _ = gps_to_utm(self.latitude, self.longitude)
             FOVw, FOVh = self.calculate_fov_dimensions()
             rotated_vectors = self.get_bounding_polygon(FOVw, FOVh)
-
-            elevation_bbox = FOVCalculator.get_ray_ground_intersections(
-                rotated_vectors, Vector(0, 0, float(corrected_altitude))
-            )
+            elevation_solver = ImageProjectionSolver(image, utmx, utmy)
+            elevation_bbox = elevation_solver.solve(rotated_vectors)
             translated_bbox = find_geodetic_intersections(
                 elevation_bbox, self.longitude, self.latitude
+            )
+            corrected_altitude = elevation_solver._atmospheric_refraction_correction(
+                image.relative_altitude
             )
             self.image.center_distance = drone_distance_to_polygon_center(
                 translated_bbox, (utmx, utmy), corrected_altitude
             )
-            if ImageClass.elevation_mode == "local":
-                altitudes = self._get_local_polygon_altitudes(translated_bbox, image)
-                if altitudes is None:
-                    warnings.warn(
-                        f"Failed to get elevation for image {image.file_name}. See log for details."
-                    )
-                    return translate_to_wgs84(
-                        translated_bbox, self.longitude, self.latitude
-                    )
-                if self._has_extreme_edge_ratio(translated_bbox, factor=6):
-                    warnings.warn(
-                        f"One side of the polygon for {image.file_name} is at least 5 times longer than another."
-                    )
-                    return translate_to_wgs84(
-                        translated_bbox, self.longitude, self.latitude
-                    )
-
-            elif ImageClass.elevation_mode == "online":
-                trans_utmbox = [
-                    utm_to_latlon(box[0], box[1], zone_number, zone_letter)
-                    for box in translated_bbox
-                ]
-                altitudes = get_relative_altitudes_from_open(trans_utmbox, image)
-
-                if altitudes is None or None in altitudes:
-                    warnings.warn(
-                        f"Failed to get elevation at point for {image.file_name}."
-                    )
-                    return translate_to_wgs84(
-                        translated_bbox, self.longitude, self.latitude
-                    )
-                if self._has_extreme_edge_ratio(translated_bbox, factor=5):
-                    warnings.warn(
-                        f"One side of the polygon for {image.file_name} is at least 5 times longer than another."
-                    )
-                    return translate_to_wgs84(
-                        translated_bbox, self.longitude, self.latitude
-                    )
-
-            # If no special conditions are met, process normally
+            if self._has_extreme_edge_ratio(translated_bbox, factor=6):
+                warnings.warn(
+                    f"One side of the polygon for {image.file_name} is much longer than another."
+                )
             return translate_to_wgs84(translated_bbox, self.longitude, self.latitude)
 
         except Exception as e:
-            warnings.warn(f"Error in get_fov_bbox: {e}")
+            image.processing_error = (
+                f"Footprint generation failed for {image.file_name}: {e}"
+            )
+            warnings.warn(image.processing_error)
             return None, None
-
-    def _resolve_relative_altitude(self, utmx: float, utmy: float) -> float:
-        if ImageClass.elevation_mode == "plane":
-            return self.image.metadata_relative_altitude
-
-        if ImageClass.elevation_mode == "local":
-            relative_altitude = get_relative_altitude_from_local_dem(
-                utmx, utmy, self.image
-            )
-            if relative_altitude is not None:
-                return relative_altitude
-            warnings.warn(
-                f"Failed to compute relative altitude from local elevation for {self.image.file_name}, using absolute altitude."
-            )
-            return self.image.absolute_altitude
-
-        if ImageClass.elevation_mode == "online":
-            relative_altitude = get_relative_altitude_from_open(
-                self.image.latitude, self.image.longitude, self.image
-            )
-            if relative_altitude is not None:
-                return relative_altitude
-            warnings.warn(
-                f"Failed to compute relative altitude from online elevation for {self.image.file_name}, using absolute altitude."
-            )
-            return self.image.absolute_altitude
-
-        return self.image.metadata_relative_altitude
-
-    def _get_local_polygon_altitudes(self, bbox, image: ImageClass):
-        altitudes = []
-        for x, y in bbox:
-            ground_elevation = get_ground_elevation_at_point(x, y, image)
-            relative_altitude = get_relative_altitude_from_ground_elevation(
-                ground_elevation, image
-            )
-            if relative_altitude is None:
-                return None
-            altitudes.append(relative_altitude)
-        return altitudes
 
     @staticmethod
     def _has_extreme_edge_ratio(bbox, factor: int):
@@ -261,50 +176,6 @@ class FOVCalculator:
             for other_distance in distances
             if other_distance != distance
         )
-
-    @staticmethod
-    def get_ray_ground_intersections(rays, origin):
-        """
-        Calculates the intersection points of the given rays with the ground plane.
-
-        Parameters:
-            rays (list): A list of Vector objects representing the rays.
-            origin (Vector): The origin point of the rays.
-
-        Returns:
-            list: A list of Vector objects representing the intersection points on the ground.
-        """
-
-        intersections = []
-        for ray in rays:
-            intersection = FOVCalculator.find_ray_ground_intersection(ray, origin)
-            if intersection is not None:
-                intersections.append(intersection)
-
-        return intersections
-
-    @staticmethod
-    def find_ray_ground_intersection(ray, origin):
-        """
-        Finds the intersection point of a single ray with the ground plane.
-
-        Parameters:
-            ray (Vector): The ray vector.
-            origin (Vector): The origin point of the ray.
-
-        Returns:
-            Vector: The intersection point with the ground, or None if the ray is parallel to the ground.
-        """
-
-        if ray.z == 0:  # Ray is parallel to ground
-            return None
-
-        # Calculate intersection parameter t
-        t = -origin.z / ray.z
-        return Vector(origin.x + ray.x * t, origin.y + ray.y * t, 0)
-
-    def _atmospheric_refraction_correction(self, altitude):
-        return altitude + (altitude * 0.0001)
 
 
 def calculate_centroid(polygon_coords):

@@ -13,7 +13,7 @@ Camera2Geo converts raw drone or camera images into georeferenced GeoTIFFs via i
 
 ## Usage
 ### QGIS
-In QGIS, images can be converted from geotagged photo points and automatically added as a temporary layer. In addition, there is a processing tool that can handle bulk processing.
+In QGIS 4.x, images can be converted from geotagged photo points and automatically added as a temporary layer. In addition, there is a processing tool that can handle bulk processing.
 ![qgis_usage.gif](images/qgis_usage.gif)
 
 ### Python 
@@ -29,7 +29,9 @@ camera2geo(
     cog = True,
     image_equalize = False,
     lens_correction = True,
-    elevation_data = True,
+    projection = "point",
+    elevation_surface = "local_file",
+    elevation_file = "/input/dem.tif",
     no_data_value = 0,
     replace_nodata_value = 1,
 )
@@ -47,7 +49,9 @@ camera2geo \
   --cog \
   --image_equalize \
   --lens_correction \
-  --elevation_data \
+  --projection point \
+  --elevation_surface local_file \
+  --elevation_file /input/dem.tif \
   --no_data_value 0 \
   --replace_nodata_value 1
   ```
@@ -62,7 +66,10 @@ camera2geo \
 3. **Determine Sensor Geometry:** Includes camera presets for many popular drones that are automatically applied but the user can provide custom values.
 
 4. **Elevation & Camera Pose Refinement (optional):**
-   - Use provided elevation raster or query for an online elevation API raster to sample ground position.
+   - `projection="point"` samples terrain at the camera point and projects to a flat plane.
+   - `projection="mesh"` intersects image rays against the elevation surface.
+   - `elevation_surface="local_file"` uses a supplied raster path.
+   - `elevation_surface="opentopo_extent"` downloads an OpenTopography `SRTMGL1_E` raster for a WGS84 bounding box and uses that surface.
    - If RTK sidecar files are detected, refine camera altitude/orientation.
 5. **Image Correction & Enhancement (optional)**
    - Lens distortion correction
@@ -92,7 +99,7 @@ Look up lenses compatible with the given camera.
 - Python ≥ 3.10 and ≤ 3.12
 - PROJ ≥ 9.3
 - GDAL ≥ 3.10.2
-> **Python Version:** This plugin requires Python ≥ 3.10 and ≤ 3.13. QGIS ships with different versions of Python, to check, in the QGIS menu, go to QGIS>About gis. If your version of Python is not supported, you can update your QGIS (if available) or install it containerized with conda: `conda create -n qgis_env python=3.12.9 "gdal>=3.10.2" "proj>=9.3" qgis -c conda-forge`(may need to change package versions), `conda activate qgis_env`, then `qgis` to start the program.
+> **QGIS Version:** This plugin now targets QGIS 4.x only. Older QGIS releases are no longer supported.
 
 > **Python dependencies:** The plugin will attempt to automatically install all Python dependencies that it requires in the QGIS Python interpreter using [QPIP](https://github.com/opengisch/qpip). If it is unable to, the user must manually locate the QGIS python interpreter and install the libraries dependencies.
 

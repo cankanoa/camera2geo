@@ -56,16 +56,9 @@ COMPILED_RESOURCE_FILES = resources.py
 
 PEP8EXCLUDE=pydev,resources.py,conf.py,third_party,ui
 
-# QGISDIR points to the location where your plugin should be installed.
-# This varies by platform, relative to your HOME directory:
-#	* Linux:
-#	  .local/share/QGIS/QGIS3/profiles/default/python/plugins/
-#	* Mac OS X:
-#	  Library/Application Support/QGIS/QGIS3/profiles/default/python/plugins
-#	* Windows:
-#	  AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins'
-
-QGISDIR=/Users/kanoalindiwe/Library/Application Support/QGIS/QGIS3/profiles/default/python/plugins
+# QGISDIR points to the plugin install directory for your active QGIS 4 profile.
+# Set it explicitly for your machine when packaging or deploying locally.
+QGISDIR ?= $(HOME)/Library/Application Support/QGIS/profiles/default/python/plugins
 
 #################################################
 # Normally you would not need to edit below here

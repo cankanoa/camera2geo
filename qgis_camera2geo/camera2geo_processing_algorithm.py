@@ -1,3 +1,4 @@
+import os
 import yaml
 
 from qgis.core import (
@@ -8,11 +9,14 @@ from qgis.core import (
     QgsProcessingParameterString,
     QgsProcessingParameterNumber,
     QgsProcessingParameterEnum,
-    QgsProcessingParameterDefinition
+    QgsProcessingParameterDefinition,
+    QgsProcessingParameterExtent,
+    QgsCoordinateReferenceSystem,
 )
 from .camera2geo.main import camera2geo
 from .camera2geo.search import search_cameras, search_lenses
 from .camera2geo.metadata import apply_metadata, read_metadata
+from .elevation_surface import get_opentopo_cache_file
 
 # CAMERA2GEO
 
@@ -25,8 +29,12 @@ class Camera2GeoProcessingAlgorithm(QgsProcessingAlgorithm):
     EQUALIZE = "EQUALIZE"
     LENS = "LENS"
 
-    ELEV_MODE = "ELEV_MODE"
-    DSM_PATH = "DSM_PATH"
+    PROJECTION = "PROJECTION"
+    ELEVATION_SURFACE = "ELEVATION_SURFACE"
+    ELEVATION_FILE = "ELEVATION_FILE"
+    OPENTOPO_EXTENT = "OPENTOPO_EXTENT"
+    OPENTOPO_API_KEY = "OPENTOPO_API_KEY"
+    REPROJECT_ELEVATION_POINT = "REPROJECT_ELEVATION_POINT"
 
     SENSOR_W = "SENSOR_W"
     SENSOR_H = "SENSOR_H"
@@ -78,37 +86,58 @@ class Camera2GeoProcessingAlgorithm(QgsProcessingAlgorithm):
             defaultValue=False
         ))
 
-        # Elevation Mode (Radio Buttons)
-        elev_choices = [
-            "Plane (relative altitude)",
-            "Online Elevation via Open Elevation",
-            "Local Elevation Raster"
-        ]
-        param_elev = QgsProcessingParameterEnum(
-            self.ELEV_MODE,
-            "Elevation Source",
-            options=elev_choices,
-            defaultValue=1,
+        projection_choices = ["Point", "Mesh"]
+        param_projection = QgsProcessingParameterEnum(
+            self.PROJECTION,
+            "Projection",
+            options=projection_choices,
+            defaultValue=0,
             allowMultiple=False
         )
-        self.addParameter(param_elev)
+        self.addParameter(param_projection)
 
-        # DSM Path (Only visible if Local DSM is selected)
+        surface_choices = ["Local File Path", "OpenTopo Extent (SRTMGL1_E)"]
+        param_surface = QgsProcessingParameterEnum(
+            self.ELEVATION_SURFACE,
+            "Elevation Surface",
+            options=surface_choices,
+            defaultValue=1,
+            allowMultiple=False,
+        )
+        self.addParameter(param_surface)
+
         param_dsm = QgsProcessingParameterFile(
-            self.DSM_PATH,
+            self.ELEVATION_FILE,
             "Elevation Raster",
             behavior=QgsProcessingParameterFile.File,
             optional=True
         )
-        param_dsm.setMetadata({
-            "widget_wrapper": {
-                "conditional_visibility": {
-                    "parameter": self.ELEV_MODE,
-                    "value": 2   # visible only when "Local DSM File" selected
-                }
-            }
-        })
         self.addParameter(param_dsm)
+
+        opentopo_extent = QgsProcessingParameterExtent(
+            self.OPENTOPO_EXTENT,
+            "OpenTopo Extent (WGS84 bounding box)",
+            optional=True,
+        )
+        self.addParameter(opentopo_extent)
+
+        opentopo_api_key = QgsProcessingParameterString(
+            self.OPENTOPO_API_KEY,
+            "OpenTopo API Key",
+            optional=True,
+        )
+        self.addParameter(opentopo_api_key)
+
+        reproject_elevation_point = QgsProcessingParameterBoolean(
+            self.REPROJECT_ELEVATION_POINT,
+            "Reproject point coords into elevation CRS",
+            defaultValue=True,
+        )
+        reproject_elevation_point.setFlags(
+            reproject_elevation_point.flags()
+            | QgsProcessingParameterDefinition.FlagAdvanced
+        )
+        self.addParameter(reproject_elevation_point)
 
         # Advanced: Sensor Dimensions
         sensor_w = QgsProcessingParameterNumber(
@@ -156,15 +185,31 @@ class Camera2GeoProcessingAlgorithm(QgsProcessingAlgorithm):
 
     def processAlgorithm(self, parameters, context, feedback):
 
-        elev_mode = self.parameterAsEnum(parameters, self.ELEV_MODE, context)
-        dsm_path = self.parameterAsFile(parameters, self.DSM_PATH, context)
-
-        if elev_mode == 0:
-            elevation_data = False
-        elif elev_mode == 1:
-            elevation_data = True
-        else:
-            elevation_data = dsm_path
+        projection_index = self.parameterAsEnum(parameters, self.PROJECTION, context)
+        elevation_surface_index = self.parameterAsEnum(
+            parameters, self.ELEVATION_SURFACE, context
+        )
+        elevation_file = self.parameterAsFile(parameters, self.ELEVATION_FILE, context)
+        projection = {0: "point", 1: "mesh"}[projection_index]
+        elevation_surface = {
+            0: "local_file",
+            1: "opentopo_extent",
+        }[elevation_surface_index]
+        opentopo_extent_rect = self.parameterAsExtent(
+            parameters,
+            self.OPENTOPO_EXTENT,
+            context,
+            QgsCoordinateReferenceSystem.fromEpsgId(4326),
+        )
+        opentopo_extent = None
+        if not opentopo_extent_rect.isNull():
+            opentopo_extent = (
+                opentopo_extent_rect.xMinimum(),
+                opentopo_extent_rect.yMinimum(),
+                opentopo_extent_rect.xMaximum(),
+                opentopo_extent_rect.yMaximum(),
+            )
+        plugin_dir = os.path.dirname(__file__)
 
         camera2geo(
             input_images=self.parameterAsString(parameters, self.INPUT, context),
@@ -176,7 +221,18 @@ class Camera2GeoProcessingAlgorithm(QgsProcessingAlgorithm):
             cog=self.parameterAsBool(parameters, self.COG, context),
             image_equalize=self.parameterAsBool(parameters, self.EQUALIZE, context),
             lens_correction=self.parameterAsBool(parameters, self.LENS, context),
-            elevation_data=elevation_data,
+            projection=projection,
+            elevation_surface=elevation_surface,
+            elevation_file=elevation_file or None,
+            opentopo_extent=opentopo_extent,
+            opentopo_api_key=self.parameterAsString(
+                parameters, self.OPENTOPO_API_KEY, context
+            )
+            or None,
+            opentopo_cache_file=get_opentopo_cache_file(plugin_dir),
+            reproject_elevation_point=self.parameterAsBool(
+                parameters, self.REPROJECT_ELEVATION_POINT, context
+            ),
             no_data_value=self.parameterAsDouble(parameters, self.NO_DATA_VALUE, context),
             replace_nodata_value=(
                 self.parameterAsDouble(parameters, self.REPLACE_NODATA_VALUE, context)

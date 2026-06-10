@@ -81,5 +81,7 @@ camera2geo(
     cog = True,
     image_equalize = False,
     lens_correction = True,
-    elevation_data = True,
+    projection = "point",
+    elevation_surface = "local_file",
+    elevation_file = "/input/dem.tif",
 )
