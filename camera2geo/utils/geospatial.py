@@ -53,6 +53,14 @@ def gps_to_utm(latitude, longitude):
     return float(x), float(y), zone_number, hemisphere
 
 
+def get_utm_crs(latitude, longitude):
+    zone_number = longitude_to_utm_zone(longitude)
+    is_southern = latitude < 0
+    return CRS(
+        proj="utm", zone=zone_number, ellps="WGS84", datum="WGS84", south=is_southern
+    )
+
+
 def get_utm_transformer(latitude, longitude):
     zone_number = longitude_to_utm_zone(longitude)
     is_southern = latitude < 0

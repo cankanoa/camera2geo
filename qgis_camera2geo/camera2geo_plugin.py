@@ -21,23 +21,23 @@
  *                                                                         *
  ***************************************************************************/
 """
+import os.path
+
 from qgis.PyQt.QtWidgets import QAction, QToolButton, QMenu
 from qgis.gui import QgsMapToolIdentifyFeature, QgsMapToolIdentify
 from qgis.PyQt.QtCore import Qt, QSettings, QTranslator, QCoreApplication, QVariant
-from qgis.core import QgsRasterLayer, QgsProject, QgsMessageLog, Qgis, QgsApplication
+from qgis.core import QgsRasterLayer, QgsProject, QgsApplication, QgsMessageLog, Qgis
 from qgis import processing
-from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, QTemporaryDir
+from qgis.PyQt.QtCore import QTemporaryDir
 from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtWidgets import QAction
 
 from .camera2geo.main import camera2geo as camera2geo_function
+from .camera2geo_dialog import REPLACE_NODATA_DISABLED, camera2geoDialog
+from .elevation_surface import get_opentopo_cache_file
 from .provider import Camera2GeoProvider
 
 # Initialize Qt resources from file resources.py
 from .resources import *
-# Import the code for the dialog
-from .camera2geo_dialog import camera2geoDialog
-import os.path
 
 
 class AttributeInspectTool(QgsMapToolIdentifyFeature):
@@ -47,7 +47,7 @@ class AttributeInspectTool(QgsMapToolIdentifyFeature):
         self.on_hit = on_hit
 
     def canvasReleaseEvent(self, event):
-        if event.button() != Qt.LeftButton:
+        if event.button() != Qt.MouseButton.LeftButton:
             return
         layer = self.iface.activeLayer()
         if not layer or layer.type() != layer.VectorLayer:
@@ -131,6 +131,9 @@ class Camera2GeoPlugin:
         self.split_btn = None
         self.tool = None
         self.dlg = None
+
+    def _log(self, message: str, level: Qgis.MessageLevel = Qgis.Info):
+        QgsMessageLog.logMessage(message, "Camera2Geo", level)
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -263,10 +266,6 @@ class Camera2GeoPlugin:
         self.actProcessReadMetadata.triggered.connect(lambda: self.open_processing_tool("camera2geo:read_metadata"))
         menu.addAction(self.actProcessReadMetadata)
 
-        self.actProcessAddRelativeAltitude = QAction("Add Relative Altitude", self.iface.mainWindow())
-        self.actProcessAddRelativeAltitude.triggered.connect(lambda: self.open_processing_tool("camera2geo:add_relative_altitude"))
-        menu.addAction(self.actProcessAddRelativeAltitude)
-
         # Save to folder name
         # one or mulitple at the same time
 
@@ -274,7 +273,9 @@ class Camera2GeoPlugin:
         self.split_btn = QToolButton(self.toolbar)
         self.split_btn.setDefaultAction(self.actRun)
         self.split_btn.setMenu(menu)
-        self.split_btn.setPopupMode(QToolButton.MenuButtonPopup)
+        self.split_btn.setPopupMode(
+            QToolButton.ToolButtonPopupMode.MenuButtonPopup
+        )
         self.toolbar.addWidget(self.split_btn)
 
         # Keep old menu entry if you want
@@ -293,6 +294,7 @@ class Camera2GeoPlugin:
         if alg:
             processing.execAlgorithmDialog(alg)
         else:
+            self._log(f"Processing tool not found: {alg_id}", Qgis.Warning)
             self.iface.messageBar().pushWarning("Camera2Geo", f"Processing tool not found: {alg_id}")
 
     def activate_tool(self):
@@ -301,65 +303,53 @@ class Camera2GeoPlugin:
 
             path_field_name = s.value("camera2geo/path_field_name", "photo")
             path = extract_path(attrs, layer, path_field_name)
+            if not path:
+                self._log(
+                    f"No image path found using field '{path_field_name}'.",
+                    Qgis.Warning,
+                )
+                self.iface.messageBar().pushWarning(
+                    "Camera2Geo", "No image path was found for the selected feature."
+                )
+                return
 
             if getattr(self, "_output_tmpdir", None) is None or not self._output_tmpdir.isValid():
                 self._output_tmpdir = QTemporaryDir()
 
             out_dir = self._output_tmpdir.path()
+            params = self._build_picker_params(path, out_dir, s)
+            self.actRun.setEnabled(False)
+            self.actRun.setText(self.tr("Processing..."))
+            self.split_btn.setToolTip(self.tr("Processing selected image"))
+            self._log(f"Processing selected image: {os.path.basename(path)}")
+            try:
+                output_paths = camera2geo_function(**params)
+            except Exception as exc:
+                self._log(
+                    f"Image processing failed for {os.path.basename(path)}: {exc}",
+                    Qgis.Critical,
+                )
+                self.iface.messageBar().pushCritical(
+                    "Camera2Geo", f"Processing failed: {exc}"
+                )
+                return
+            finally:
+                self.actRun.setEnabled(True)
+                self.actRun.setText(self.tr("Camera2geo"))
+                self.split_btn.setToolTip("")
 
-            elevation_data_value = s.value("camera2geo/elevation_data", "plane")
-            if elevation_data_value == "plane": # No elevation data
-                elevation_data_value = False
-            elif elevation_data_value == "online": # Online elevation
-                elevation_data_value = True
-            else: # File elevation
-                pass
-
-            out_path = camera2geo_function(
-                path, out_dir,
-                sensor_width_mm=s.value("camera2geo/sensor_width_mm", None, type=float),
-                sensor_height_mm=s.value("camera2geo/sensor_height_mm", None, type=float),
-                epsg=s.value("camera2geo/epsg", 4326, type=int),
-                correct_magnetic_declination=s.value("camera2geo/correct_magnetic_declination", False, type=bool),
-                cog=s.value("camera2geo/cog", False, type=bool),
-                lens_correction=s.value("camera2geo/lens_correction", False, type=bool),
-                elevation_data=elevation_data_value,
-            )[0]
-
-            if not out_path or not os.path.exists(out_path):
-                self.iface.messageBar().pushCritical("Camera2Geo", "Processing failed: no output file.")
+            if not output_paths:
+                self._log(
+                    f"Processing finished without a projected output for {os.path.basename(path)}.",
+                    Qgis.Critical,
+                )
+                self.iface.messageBar().pushCritical(
+                    "Camera2Geo",
+                    "Processing failed: no projected image could be generated.",
+                )
                 return
 
-            layer_name = os.path.basename(out_path)
-            rlayer = QgsRasterLayer(out_path, layer_name, "gdal")
-
-            if not rlayer.isValid():
-                self.iface.messageBar().pushCritical("Camera2Geo", f"Failed to load: {out_path}")
-                return
-
-            project = QgsProject.instance()
-            root = project.layerTreeRoot()
-
-            group_name = s.value("camera2geo/output_group", "photos")
-
-            # find or create group
-            group = root.findGroup(group_name)
-            if group is None:
-                group = root.addGroup(group_name)
-
-            # Remove other layers in group if checked
-            remove_prev = s.value("camera2geo/remove_previous_photos", False, type=bool)
-            if remove_prev:
-                for child in list(group.children()):
-                    if hasattr(child, 'layerId'):
-                        project.removeMapLayer(child.layerId())
-
-            # add layer without stealing focus
-            project.addMapLayer(rlayer, addToLegend=False)
-            group.insertLayer(-0, rlayer)
-
-            # Simply add the layer
-            # QgsProject.instance().addMapLayer(rlayer)
+            self._load_output_layer(output_paths[0])
 
         self.tool = AttributeInspectTool(self.iface, on_hit)
         self.tool.setAction(self.actRun)
@@ -370,9 +360,106 @@ class Camera2GeoPlugin:
         if tool is not self.tool:
             self.actRun.setChecked(False)
 
+    def _build_picker_params(self, path: str, out_dir: str, settings: QSettings):
+        projection_value = settings.value("camera2geo/projection", "point")
+        if projection_value not in {"point", "mesh"}:
+            projection_value = "point"
+
+        elevation_surface_value = settings.value(
+            "camera2geo/elevation_surface", "opentopo_extent"
+        )
+        if elevation_surface_value not in {"local_file", "opentopo_extent"}:
+            elevation_surface_value = "opentopo_extent"
+
+        elevation_file_value = settings.value("camera2geo/elevation_file", "")
+        opentopo_extent_value = settings.value("camera2geo/opentopo_extent", "")
+        opentopo_api_key_value = settings.value("camera2geo/opentopo_api_key", "")
+
+        replace_nodata_value = settings.value("camera2geo/replace_nodata_value", 1)
+        if replace_nodata_value in ("", None):
+            replace_nodata_value = None
+        else:
+            replace_nodata_value = float(replace_nodata_value)
+            if replace_nodata_value == REPLACE_NODATA_DISABLED:
+                replace_nodata_value = None
+
+        return {
+            "input_images": path,
+            "output_images": out_dir,
+            "sensor_width_mm": settings.value(
+                "camera2geo/sensor_width_mm", None, type=float
+            ),
+            "sensor_height_mm": settings.value(
+                "camera2geo/sensor_height_mm", None, type=float
+            ),
+            "epsg": settings.value("camera2geo/epsg", 4326, type=int),
+            "correct_magnetic_declination": settings.value(
+                "camera2geo/correct_magnetic_declination", False, type=bool
+            ),
+            "cog": settings.value("camera2geo/cog", False, type=bool),
+            "lens_correction": settings.value(
+                "camera2geo/lens_correction", False, type=bool
+            ),
+            "projection": projection_value,
+            "elevation_surface": elevation_surface_value,
+            "elevation_file": elevation_file_value or None,
+            "opentopo_extent": opentopo_extent_value or None,
+            "opentopo_api_key": opentopo_api_key_value or None,
+            "opentopo_cache_file": get_opentopo_cache_file(self.plugin_dir),
+            "reproject_elevation_point": settings.value(
+                "camera2geo/reproject_elevation_point", True, type=bool
+            ),
+            "no_data_value": settings.value("camera2geo/no_data_value", 0, type=float),
+            "replace_nodata_value": replace_nodata_value,
+        }
+
+    def _load_output_layer(self, out_path: str):
+        if not out_path or not os.path.exists(out_path):
+            self._log(
+                f"Processing failed because the output raster was not written: {out_path}",
+                Qgis.Critical,
+            )
+            self.iface.messageBar().pushCritical(
+                "Camera2Geo", "Processing failed: output raster was not written."
+            )
+            return
+
+        layer_name = os.path.basename(out_path)
+        rlayer = QgsRasterLayer(out_path, layer_name, "gdal")
+
+        if not rlayer.isValid():
+            self._log(f"Failed to load raster layer: {out_path}", Qgis.Critical)
+            self.iface.messageBar().pushCritical(
+                "Camera2Geo", f"Failed to load: {out_path}"
+            )
+            return
+
+        settings = QSettings()
+        project = QgsProject.instance()
+        root = project.layerTreeRoot()
+        group_name = settings.value("camera2geo/output_group", "photos")
+        group = root.findGroup(group_name)
+        if group is None:
+            group = root.addGroup(group_name)
+
+        remove_prev = settings.value(
+            "camera2geo/remove_previous_photos", False, type=bool
+        )
+        if remove_prev:
+            for child in list(group.children()):
+                if hasattr(child, "layerId"):
+                    project.removeMapLayer(child.layerId())
+
+        project.addMapLayer(rlayer, addToLegend=False)
+        group.insertLayer(-0, rlayer)
+        self._log(f"Loaded raster layer: {layer_name}")
+        self.iface.messageBar().pushSuccess(
+            "Camera2Geo", f"Loaded {layer_name}"
+        )
+
     def open_settings_dialog(self):
         if self.dlg is None:
-            self.dlg = camera2geoDialog()
+            self.dlg = camera2geoDialog(self.iface)
         self.dlg.show()
         self.dlg.raise_()
         self.dlg.activateWindow()
@@ -395,7 +482,7 @@ class Camera2GeoPlugin:
         # Only create GUI ONCE in callback, so that it will only load when the plugin is started
         if self.first_start == True:
             self.first_start = False
-            self.dlg = camera2geoDialog()
+            self.dlg = camera2geoDialog(self.iface)
 
         # show the dialog
         self.dlg.show()

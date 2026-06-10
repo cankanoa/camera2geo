@@ -4,13 +4,13 @@
 
 [general]
 name=Camera2geo
-qgisMinimumVersion=3.0
+qgisMinimumVersion=4.0
 description=Camera to geographic space image conversion
-version=1.0.5
+version=2.0.0
 author=Kanoa Lindiwe LLC
 email=cankanoa@gmail.com
 
-about=Camera2Geo converts raw drone or camera images into georeferenced GeoTIFFs via image metadata and a camera model. This can be helpful to quickly view individual aerial images in GIS software, label image features in geographic space, and view images in full resolution rather than in orthomosaic resolution. The core functionality is built from Drone-Footprints but extended with additional features and an improved interface via a Python library, QGIS plugin, and CLI.
+about=Camera2Geo converts raw drone or camera images into georeferenced GeoTIFFs via image metadata and a camera model. This can be helpful to quickly view individual aerial images in GIS software, label image features in geographic space, and view images in full resolution rather than in orthomosaic resolution.
 
  IMPORTANT: Manual installation of system level dependencies is required for this plugin, see: https://github.com/cankanoa/camera2geo?tab=readme-ov-file#qgis-plugin-installation
 
@@ -21,7 +21,7 @@ repository=https://github.com/cankanoa/camera2geo
 
 # Recommended items:
 
-hasProcessingProvider=no
+hasProcessingProvider=yes
 # Uncomment the following line and add your changelog:
 # changelog=
 
@@ -47,4 +47,3 @@ Category of the plugin: Raster, Vector, Database or Web
 
 # If the plugin can run on QGIS Server.
 server=False
-

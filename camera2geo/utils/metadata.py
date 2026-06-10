@@ -11,6 +11,131 @@ from shapely.geometry.polygon import orient
 
 
 @dataclass
+class ImageMetadata:
+    tags: dict = field(default_factory=dict)
+
+    def get(self, key: str, default=None):
+        return self.tags.get(key, default)
+
+    @property
+    def file_name(self) -> str:
+        return self.tags["File FileName"]
+
+    @property
+    def latitude(self) -> float:
+        return float(self.tags["GPS GPSLatitude"])
+
+    @property
+    def longitude(self) -> float:
+        return float(self.tags["GPS GPSLongitude"])
+
+    @property
+    def gps_altitude(self) -> float | None:
+        return self.tags.get("GPS GPSAltitude")
+
+    @property
+    def focal_length(self) -> float:
+        return float(self.tags["EXIF FocalLength"])
+
+    @property
+    def focal_length35mm(self) -> float | None:
+        return self.tags.get("EXIF FocalLengthIn35mmFilm")
+
+    @property
+    def relative_altitude(self) -> float | None:
+        return self.tags.get("XMP drone-dji RelativeAltitude")
+
+    @property
+    def absolute_altitude(self) -> float | None:
+        return self.tags.get("XMP drone-dji AbsoluteAltitude")
+
+    @property
+    def gimbal_roll_degree(self) -> float:
+        return float(
+            self.tags.get("XMP drone-dji GimbalRollDegree")
+            if self.tags.get("XMP drone-dji GimbalRollDegree") is not None
+            else (self.tags.get("XMP drone-dji Roll") or 0.0)
+        )
+
+    @property
+    def gimbal_pitch_degree(self) -> float:
+        return float(
+            self.tags.get("XMP drone-dji GimbalPitchDegree")
+            if self.tags.get("XMP drone-dji GimbalPitchDegree") is not None
+            else (self.tags.get("XMP drone-dji Pitch") or 0.0)
+        )
+
+    @property
+    def gimbal_yaw_degree(self) -> float:
+        return float(
+            self.tags.get("XMP drone-dji GimbalYawDegree")
+            if self.tags.get("XMP drone-dji GimbalYawDegree") is not None
+            else (self.tags.get("XMP drone-dji Yaw") or 0.0)
+        )
+
+    @property
+    def flight_pitch_degree(self) -> float:
+        return float(self.tags.get("XMP drone-dji FlightPitchDegree") or 999.0)
+
+    @property
+    def flight_roll_degree(self) -> float:
+        return float(self.tags.get("XMP drone-dji FlightRollDegree") or 999.0)
+
+    @property
+    def flight_yaw_degree(self) -> float:
+        return float(self.tags.get("XMP drone-dji FlightYawDegree") or 999.0)
+
+    @property
+    def image_width(self) -> int:
+        return int(
+            self.tags.get("EXIF ExifImageWidth")
+            or self.tags.get("Image ImageWidth")
+        )
+
+    @property
+    def image_height(self) -> int:
+        return int(
+            self.tags.get("EXIF ExifImageLength")
+            or self.tags.get("Image ImageLength")
+        )
+
+    @property
+    def max_aperture_value(self) -> float | None:
+        return self.tags.get("EXIF MaxApertureValue")
+
+    @property
+    def datetime_original(self) -> str | None:
+        return self.tags.get("EXIF DateTimeOriginal")
+
+    @property
+    def sensor_model_data(self) -> str | None:
+        return self.tags.get("Image Model")
+
+    @property
+    def sensor_index(self) -> str:
+        return str(
+            self.tags.get("XMP drone-dji RigCameraIndex")
+            or self.tags.get("XMP drone-dji SensorIndex")
+            or ""
+        )
+
+    @property
+    def sensor_make(self) -> str | None:
+        return self.tags.get("Image Make")
+
+    @property
+    def metadata_relative_altitude(self) -> float:
+        return float(self.relative_altitude or self.gps_altitude or 0.0)
+
+    @property
+    def metadata_absolute_altitude(self) -> float:
+        return float(self.absolute_altitude or self.gps_altitude or 0.0)
+
+    def to_dict(self) -> dict:
+        return dict(self.tags)
+
+
+@dataclass
 class ImageClass:
     # Class vars
     epsg: ClassVar[int] = 4326
@@ -18,12 +143,15 @@ class ImageClass:
     cog: ClassVar[bool] = False
     image_equalize: ClassVar[bool] = False
     lens_correction: ClassVar[bool] = False
-    elevation_mode: ClassVar[str] = "plane"
-    dsm_path: ClassVar[str | None] = None
-    global_elevation: ClassVar[bool] = False
+    projection_mode: ClassVar[str] = "point"
+    elevation_surface: ClassVar[str] = "local_file"
+    elevation_file: ClassVar[str | None] = None
+    reproject_elevation_point: ClassVar[bool] = True
+    no_data_value: ClassVar[float | int] = 0
+    replace_nodata_value: ClassVar[float | int | None] = 1
 
     # Instance vars
-    metadata: dict
+    metadata: ImageMetadata
     sensor_dimensions: dict
     declination: float = None
     drone_hash: int = None
@@ -35,75 +163,39 @@ class ImageClass:
     image_path: str = ""
     output_file: str = ""
     geotiff_file: str = ""
-
+    processing_error: str | None = None
     def __post_init__(self):
-        self.file_name = str(self.metadata.get("File:FileName"))
+        self.file_name = self.metadata.file_name
 
         # Extract detailed sensor and drone info for the current image
         # Extracting latitude, longitude, and altitude details
-        self.latitude = float(
-            self.metadata.get("Composite:GPSLatitude")
-            or self.metadata.get("EXIF:GPSLatitude")
-        )
-        self.longitude = float(
-            self.metadata.get("Composite:GPSLongitude")
-            or self.metadata.get("EXIF:GPSLongitude")
-        )
-        self.focal_length = float(self.metadata.get("EXIF:FocalLength"))
-        self.focal_length35mm = float(self.metadata.get("EXIF:FocalLengthIn35mmFormat"))
+        self.latitude = self.metadata.latitude
+        self.longitude = self.metadata.longitude
+        self.focal_length = self.metadata.focal_length
+        self.focal_length35mm = self.metadata.focal_length35mm
 
-        self.relative_altitude = float(
-            self.metadata.get("XMP:RelativeAltitude")
-            or self.metadata.get("Composite:GPSAltitude")
-        )
-        self.absolute_altitude = float(
-            self.metadata.get("XMP:AbsoluteAltitude")
-            or self.metadata.get("Composite:GPSAltitude")
-        )
+        self.relative_altitude = self.metadata.metadata_relative_altitude
+        self.absolute_altitude = self.metadata.metadata_absolute_altitude
 
         # Extracting gimbal and flight orientation details
-        self.gimbal_roll_degree = _get_float(
-            self.metadata, "XMP:GimbalRollDegree", "MakerNotes:CameraRoll", "XMP:Roll"
-        )
-        self.gimbal_pitch_degree = _get_float(
-            self.metadata,
-            "XMP:GimbalPitchDegree",
-            "MakerNotes:CameraPitch",
-            "XMP:Pitch",
-        )
-        self.gimbal_yaw_degree = _get_float(
-            self.metadata, "XMP:GimbalYawDegree", "MakerNotes:CameraYaw", "XMP:Yaw"
-        )
+        self.gimbal_roll_degree = self.metadata.gimbal_roll_degree
+        self.gimbal_pitch_degree = self.metadata.gimbal_pitch_degree
+        self.gimbal_yaw_degree = self.metadata.gimbal_yaw_degree
 
-        self.flight_pitch_degree = _get_float(
-            self.metadata, "XMP:FlightPitchDegree", "MakerNotes:Pitch", default=999
-        )
-        self.flight_roll_degree = _get_float(
-            self.metadata, "XMP:FlightRollDegree", "MakerNotes:Roll", default=999
-        )
-        self.flight_yaw_degree = _get_float(
-            self.metadata, "XMP:FlightYawDegree", "MakerNotes:Yaw", default=999
-        )
+        self.flight_pitch_degree = self.metadata.flight_pitch_degree
+        self.flight_roll_degree = self.metadata.flight_roll_degree
+        self.flight_yaw_degree = self.metadata.flight_yaw_degree
 
         # Extracting image and sensor details
-        self.image_width = int(
-            self.metadata.get("EXIF:ImageWidth")
-            or self.metadata.get("EXIF:ExifImageWidth")
-        )  # pixels
-        self.image_height = int(
-            self.metadata.get("EXIF:ImageHeight")
-            or self.metadata.get("EXIF:ExifImageHeight")
-        )  # pixels
-        self.max_aperture_value = self.metadata.get("EXIF:MaxApertureValue")
+        self.image_width = self.metadata.image_width  # pixels
+        self.image_height = self.metadata.image_height  # pixels
+        self.max_aperture_value = self.metadata.max_aperture_value
         # date/time of original image capture
-        self.datetime_original = self.metadata.get("EXIF:DateTimeOriginal")
+        self.datetime_original = self.metadata.datetime_original
         # Get sensor model and rig camera index from metadata
-        self.sensor_model_data = self.metadata.get("EXIF:Model")
-        self.sensor_index = str(
-            self.metadata.get("XMP:RigCameraIndex")
-            or self.metadata.get("XMP:SensorIndex")
-        )
-        self.sensor_make = ""
+        self.sensor_model_data = self.metadata.sensor_model_data
+        self.sensor_index = self.metadata.sensor_index
+        self.sensor_make = self.metadata.sensor_make or ""
 
         if self.sensor_model_data:
             # Prioritize direct match with sensor model and rig camera index
@@ -151,11 +243,18 @@ class ImageClass:
             self.drone_model = ""
             self.drone_make = "Unknown Drone"
 
+        self.refresh_derived_properties()
+        self.create_hash()
+
+    def set_relative_altitude(self, relative_altitude: float):
+        self.relative_altitude = relative_altitude
+        self.refresh_derived_properties()
+
+    def refresh_derived_properties(self):
         self.gsd = (self.sensor_width * self.relative_altitude) / (
             self.focal_length * self.image_width
         )
         self.create_properties()
-        self.create_hash()
 
     # def find_declination(altitude, focal_length, drone_latitude, drone_longitude, datetime_original):
     def find_declination(self):
@@ -267,14 +366,3 @@ class ImageClass:
                 self.max_aperture_value,
             )
         )
-
-
-def _get_float(md, *keys, default=0.0):
-    for k in keys:
-        v = md.get(k)
-        if v not in (None, "", " ", "null", "NULL"):
-            try:
-                return float(v)
-            except:
-                pass
-    return float(default)

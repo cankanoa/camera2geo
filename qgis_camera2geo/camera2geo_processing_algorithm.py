@@ -1,21 +1,22 @@
+import os
 import yaml
 
 from qgis.core import (
     QgsProcessingAlgorithm,
     QgsProcessingParameterFile,
-    QgsProcessingParameterFolderDestination,
     QgsProcessingParameterBoolean,
     QgsProcessingParameterCrs,
     QgsProcessingParameterString,
     QgsProcessingParameterNumber,
-    QgsProcessingParameterFileDestination,
     QgsProcessingParameterEnum,
-    QgsProcessingParameterDefinition
+    QgsProcessingParameterDefinition,
+    QgsProcessingParameterExtent,
+    QgsCoordinateReferenceSystem,
 )
 from .camera2geo.main import camera2geo
 from .camera2geo.search import search_cameras, search_lenses
 from .camera2geo.metadata import apply_metadata, read_metadata
-from .camera2geo.prep import add_relative_altitude_to_csv
+from .elevation_surface import get_opentopo_cache_file
 
 # CAMERA2GEO
 
@@ -28,11 +29,17 @@ class Camera2GeoProcessingAlgorithm(QgsProcessingAlgorithm):
     EQUALIZE = "EQUALIZE"
     LENS = "LENS"
 
-    ELEV_MODE = "ELEV_MODE"
-    DSM_PATH = "DSM_PATH"
+    PROJECTION = "PROJECTION"
+    ELEVATION_SURFACE = "ELEVATION_SURFACE"
+    ELEVATION_FILE = "ELEVATION_FILE"
+    OPENTOPO_EXTENT = "OPENTOPO_EXTENT"
+    OPENTOPO_API_KEY = "OPENTOPO_API_KEY"
+    REPROJECT_ELEVATION_POINT = "REPROJECT_ELEVATION_POINT"
 
     SENSOR_W = "SENSOR_W"
     SENSOR_H = "SENSOR_H"
+    NO_DATA_VALUE = "NO_DATA_VALUE"
+    REPLACE_NODATA_VALUE = "REPLACE_NODATA_VALUE"
 
 
     def initAlgorithm(self, config=None):
@@ -79,37 +86,58 @@ class Camera2GeoProcessingAlgorithm(QgsProcessingAlgorithm):
             defaultValue=False
         ))
 
-        # Elevation Mode (Radio Buttons)
-        elev_choices = [
-            "Plane (no elevation)",
-            "Online Elevation via Open Elevation",
-            "Local Elevation Raster"
-        ]
-        param_elev = QgsProcessingParameterEnum(
-            self.ELEV_MODE,
-            "Elevation Source",
-            options=elev_choices,
-            defaultValue=0,  # Plane
+        projection_choices = ["Point", "Mesh"]
+        param_projection = QgsProcessingParameterEnum(
+            self.PROJECTION,
+            "Projection",
+            options=projection_choices,
+            defaultValue=0,
             allowMultiple=False
         )
-        self.addParameter(param_elev)
+        self.addParameter(param_projection)
 
-        # DSM Path (Only visible if Local DSM is selected)
+        surface_choices = ["Local File Path", "OpenTopo Extent (SRTMGL1_E)"]
+        param_surface = QgsProcessingParameterEnum(
+            self.ELEVATION_SURFACE,
+            "Elevation Surface",
+            options=surface_choices,
+            defaultValue=1,
+            allowMultiple=False,
+        )
+        self.addParameter(param_surface)
+
         param_dsm = QgsProcessingParameterFile(
-            self.DSM_PATH,
+            self.ELEVATION_FILE,
             "Elevation Raster",
             behavior=QgsProcessingParameterFile.File,
             optional=True
         )
-        param_dsm.setMetadata({
-            "widget_wrapper": {
-                "conditional_visibility": {
-                    "parameter": self.ELEV_MODE,
-                    "value": 2   # visible only when "Local DSM File" selected
-                }
-            }
-        })
         self.addParameter(param_dsm)
+
+        opentopo_extent = QgsProcessingParameterExtent(
+            self.OPENTOPO_EXTENT,
+            "OpenTopo Extent (WGS84 bounding box)",
+            optional=True,
+        )
+        self.addParameter(opentopo_extent)
+
+        opentopo_api_key = QgsProcessingParameterString(
+            self.OPENTOPO_API_KEY,
+            "OpenTopo API Key",
+            optional=True,
+        )
+        self.addParameter(opentopo_api_key)
+
+        reproject_elevation_point = QgsProcessingParameterBoolean(
+            self.REPROJECT_ELEVATION_POINT,
+            "Reproject point coords into elevation CRS",
+            defaultValue=True,
+        )
+        reproject_elevation_point.setFlags(
+            reproject_elevation_point.flags()
+            | QgsProcessingParameterDefinition.FlagAdvanced
+        )
+        self.addParameter(reproject_elevation_point)
 
         # Advanced: Sensor Dimensions
         sensor_w = QgsProcessingParameterNumber(
@@ -130,18 +158,58 @@ class Camera2GeoProcessingAlgorithm(QgsProcessingAlgorithm):
         sensor_h.setFlags(sensor_h.flags() | QgsProcessingParameterDefinition.FlagAdvanced)
         self.addParameter(sensor_h)
 
+        no_data_value = QgsProcessingParameterNumber(
+            self.NO_DATA_VALUE,
+            "Output NoData Value",
+            type=QgsProcessingParameterNumber.Double,
+            defaultValue=0,
+            optional=False
+        )
+        no_data_value.setFlags(
+            no_data_value.flags() | QgsProcessingParameterDefinition.FlagAdvanced
+        )
+        self.addParameter(no_data_value)
+
+        replace_nodata_value = QgsProcessingParameterNumber(
+            self.REPLACE_NODATA_VALUE,
+            "Replace Input Pixels Equal to NoData Value",
+            type=QgsProcessingParameterNumber.Double,
+            defaultValue=1,
+            optional=True
+        )
+        replace_nodata_value.setFlags(
+            replace_nodata_value.flags() | QgsProcessingParameterDefinition.FlagAdvanced
+        )
+        self.addParameter(replace_nodata_value)
+
 
     def processAlgorithm(self, parameters, context, feedback):
 
-        elev_mode = self.parameterAsEnum(parameters, self.ELEV_MODE, context)
-        dsm_path = self.parameterAsFile(parameters, self.DSM_PATH, context)
-
-        if elev_mode == 0:
-            elevation_data = False
-        elif elev_mode == 1:
-            elevation_data = True
-        else:
-            elevation_data = dsm_path
+        projection_index = self.parameterAsEnum(parameters, self.PROJECTION, context)
+        elevation_surface_index = self.parameterAsEnum(
+            parameters, self.ELEVATION_SURFACE, context
+        )
+        elevation_file = self.parameterAsFile(parameters, self.ELEVATION_FILE, context)
+        projection = {0: "point", 1: "mesh"}[projection_index]
+        elevation_surface = {
+            0: "local_file",
+            1: "opentopo_extent",
+        }[elevation_surface_index]
+        opentopo_extent_rect = self.parameterAsExtent(
+            parameters,
+            self.OPENTOPO_EXTENT,
+            context,
+            QgsCoordinateReferenceSystem.fromEpsgId(4326),
+        )
+        opentopo_extent = None
+        if not opentopo_extent_rect.isNull():
+            opentopo_extent = (
+                opentopo_extent_rect.xMinimum(),
+                opentopo_extent_rect.yMinimum(),
+                opentopo_extent_rect.xMaximum(),
+                opentopo_extent_rect.yMaximum(),
+            )
+        plugin_dir = os.path.dirname(__file__)
 
         camera2geo(
             input_images=self.parameterAsString(parameters, self.INPUT, context),
@@ -153,7 +221,25 @@ class Camera2GeoProcessingAlgorithm(QgsProcessingAlgorithm):
             cog=self.parameterAsBool(parameters, self.COG, context),
             image_equalize=self.parameterAsBool(parameters, self.EQUALIZE, context),
             lens_correction=self.parameterAsBool(parameters, self.LENS, context),
-            elevation_data=elevation_data,
+            projection=projection,
+            elevation_surface=elevation_surface,
+            elevation_file=elevation_file or None,
+            opentopo_extent=opentopo_extent,
+            opentopo_api_key=self.parameterAsString(
+                parameters, self.OPENTOPO_API_KEY, context
+            )
+            or None,
+            opentopo_cache_file=get_opentopo_cache_file(plugin_dir),
+            reproject_elevation_point=self.parameterAsBool(
+                parameters, self.REPROJECT_ELEVATION_POINT, context
+            ),
+            no_data_value=self.parameterAsDouble(parameters, self.NO_DATA_VALUE, context),
+            replace_nodata_value=(
+                self.parameterAsDouble(parameters, self.REPLACE_NODATA_VALUE, context)
+                if self.REPLACE_NODATA_VALUE in parameters
+                and parameters[self.REPLACE_NODATA_VALUE] not in (None, "")
+                else None
+            ),
         )
 
         return {self.OUTPUT: self.parameterAsString(parameters, self.OUTPUT, context)}
@@ -227,7 +313,7 @@ class ApplyMetadataAlgorithm(QgsProcessingAlgorithm):
 
         self.addParameter(QgsProcessingParameterString(
             self.METADATA,
-            "EXIF Data to Add As a Python Dict Like tag:value; (e.g. {'Composite:GPSLatitude':19.95882446})",
+            "Metadata to add as a Python dict with exiv2 tags like tag:value; (e.g. {'Exif.GPSInfo.GPSLatitude':19.95882446})",
             optional=True
         ))
 
@@ -290,35 +376,3 @@ class ReadMetadataAlgorithm(QgsProcessingAlgorithm):
     def createInstance(self): return ReadMetadataAlgorithm()
     def shortHelpString(self):
         return read_metadata.__doc__ or ""
-
-# ADD RELATIVE ALTITUDE
-
-class AddRelativeAltitudeAlgorithm(QgsProcessingAlgorithm):
-
-    def initAlgorithm(self, config=None):
-        self.addParameter(QgsProcessingParameterFile("INPUT", "Input CSV"))
-        self.addParameter(QgsProcessingParameterString("LAT", "Lat Field Header"))
-        self.addParameter(QgsProcessingParameterString("LON", "Lon Field Header"))
-        self.addParameter(QgsProcessingParameterString("ABS", "Absolute Altitude (MSL) Field Header"))
-        self.addParameter(QgsProcessingParameterString("REL", "Relative Altitude (AGL) Output Field Header"))
-        self.addParameter(QgsProcessingParameterFile("RAS_PATH", "Ellipsoidal Elevation Raster Path"))
-
-
-    def processAlgorithm(self, parameters, context, feedback):
-        add_relative_altitude_to_csv(
-            self.parameterAsFile(parameters, "INPUT", context),
-            self.parameterAsString(parameters, "LAT", context),
-            self.parameterAsString(parameters, "LON", context),
-            self.parameterAsString(parameters, "ABS", context),
-            self.parameterAsString(parameters, "REL", context),
-            self.parameterAsString(parameters, "RAS_PATH", context),
-        )
-        return {}
-
-    def name(self): return "add_relative_altitude"
-    def displayName(self): return "Add Relative Altitude"
-    def group(self): return ""
-    def groupId(self): return ""
-    def createInstance(self): return AddRelativeAltitudeAlgorithm()
-    def shortHelpString(self):
-        return add_relative_altitude_to_csv.__doc__ or ""
